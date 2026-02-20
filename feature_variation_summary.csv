@@ -1,0 +1,6 @@
+,PE_Ratio,PE_Ratio,ROE,ROE,Momentum,Momentum,Volatility,Volatility,Debt_to_Equity,Debt_to_Equity,Revenue_Growth,Revenue_Growth
+,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std
+Target,,,,,,,,,,,,
+0,20.763,9.567,0.195,0.225,0.998,0.078,0.021,0.008,0.788,0.581,0.078,0.149
+1,27.304,12.327,0.393,0.612,1.02,0.058,0.016,0.006,1.849,2.568,0.087,0.093
+2,101.523,480.821,0.775,2.51,1.008,0.077,0.021,0.01,2.098,2.863,0.07,0.175
