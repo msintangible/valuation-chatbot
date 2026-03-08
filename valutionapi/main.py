@@ -1,6 +1,9 @@
-from fastapi import FastAPI
-from database import init_db
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+
+from database import init_db, get_db
 from AI_model import load_valuation_model, load_model_columns
+from predict import run_prediction
 
 app = FastAPI(
     title="Stock Valuation API",
@@ -15,7 +18,13 @@ init_db()
 # Stored at module level so all endpoints can access them
 model = load_valuation_model()
 model_columns = load_model_columns()
-
+@app.post("/predict")
+def predict(ticker: str, user_id: str, db: Session = Depends(get_db)):
+    try:
+        result = run_prediction(ticker, user_id, model, model_columns, db)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/")
 def read_root():
