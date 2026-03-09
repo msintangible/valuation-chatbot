@@ -11,7 +11,7 @@ import pandas as pd
 import yfinance as yf
 from sqlalchemy.orm import Session
 
-from models import Prediction
+from models.models import Prediction, User
 
 # Maps yfinance sector strings to the sector names used in training
 # Training used: Technology, Financials, Healthcare, Discretionary,
@@ -221,39 +221,56 @@ def fetch_stock_features(ticker: str, model_columns: list):
 
 LABEL_MAP = {0: "Undervalued", 1: "Fair Value", 2: "Overvalued"}
 
-
-def run_prediction(ticker: str, user_id: str, model, model_columns: list, db: Session) -> dict:
-    """
-    Runs a single stock ticker through the full prediction pipeline
-    and saves the result to the predictions table.
-
-    Args:
-        ticker        (str):     stock ticker e.g. "AAPL"
-        user_id       (str):     Azure Bot user ID
-        model:                   loaded XGBoost model
-        model_columns (list):    feature column schema from model_columns.pkl
-        db            (Session): SQLAlchemy database session
-
-    Returns:
-        dict with keys:
-            ticker, label, graham_value, current_price, confidence, predicted_at
-
-    Raises:
-        ValueError if features cannot be fetched for the ticker
-    """
-
+def validate_ticker(ticker: str) -> str:
+    """Normalise, format-check, and verify the ticker exists in yfinance."""
     ticker = ticker.upper().strip()
 
-    # --- 1. FETCH AND ENGINEER FEATURES ---
-    aligned, graham_value, current_price = fetch_stock_features(ticker, model_columns)
+    if not ticker or len(ticker) > 10:
+        raise ValueError(f"Invalid ticker format: '{ticker}'")
 
-    # --- 2. RUN MODEL ---
-    predicted_label = int(model.predict(aligned)[0])
-    probabilities   = model.predict_proba(aligned)[0]
-    confidence      = round(float(probabilities[predicted_label]), 4)
-    label_text      = LABEL_MAP[predicted_label]
+    # Verify it actually exists in yfinance
+    data = yf.Ticker(ticker)
+    info = data.info
 
-    # --- 3. SAVE TO DATABASE ---
+    # yfinance returns a mostly empty dict for unknown tickers
+    if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
+        raise ValueError(f"Ticker '{ticker}' not found or has no market data in yfinance.")
+
+    return ticker
+def validate_user_exists(user_id: str, db: Session) -> None:
+    """Raise ValueError if the user_id does not exist in the database."""
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id must be a non-empty string.")
+    user = db.query(User).filter(User.user_id  == user_id).first()
+    if not user:
+        raise ValueError(f"User '{user_id}' does not exist.")
+
+def run_model(model, aligned, label_map: dict) -> tuple[int, str, float]:
+    """
+    Run the XGBoost model and return (predicted_label, label_text, confidence).
+    Raises ValueError if the predicted label is not in label_map.
+    """
+    try:
+        predicted_label = int(model.predict(aligned)[0])
+        probabilities   = model.predict_proba(aligned)[0]
+    except Exception as e:
+        raise RuntimeError(f"Model inference failed: {e}") from e
+
+    confidence = round(float(probabilities[predicted_label]), 4)
+    label_text = label_map[predicted_label]
+    return predicted_label, label_text, confidence
+
+def _save_prediction(
+    user_id: str,
+    ticker: str,
+    predicted_label: int,
+    label_text: str,
+    graham_value: float,
+    current_price: float,
+    confidence: float,
+    db: Session,
+) -> Prediction:
+    """Persist a Prediction row and return the refreshed ORM object."""
     prediction_row = Prediction(
         user_id         = user_id,
         ticker          = ticker,
@@ -263,11 +280,50 @@ def run_prediction(ticker: str, user_id: str, model, model_columns: list, db: Se
         current_price   = round(current_price, 2),
         confidence      = confidence,
     )
-    db.add(prediction_row)
-    db.commit()
-    db.refresh(prediction_row)
+    try:
+        db.add(prediction_row)
+        db.commit()
+        db.refresh(prediction_row)
+    except Exception as e:
+        db.rollback() # Ensure we don't leave the session in a broken state
+        raise RuntimeError(f"Database write failed for '{ticker}': {e}") from e
 
-    # --- 4. RETURN RESULT ---
+    return prediction_row
+
+def run_prediction(
+    ticker: str,
+    user_id: str,
+    model,
+    model_columns: list,
+    db: Session,
+) -> dict:
+
+    # 1. Validate inputs
+    ticker = validate_ticker(ticker)
+    validate_user_exists(user_id, db)
+
+    # 2. Fetch and engineer features
+    try:
+        aligned, graham_value, current_price = fetch_stock_features(ticker, model_columns)
+    except Exception as e:
+        raise ValueError(f"Could not fetch features for '{ticker}': {e}") from e
+
+    # 3. Run model
+    predicted_label, label_text, confidence = run_model(model, aligned, LABEL_MAP)
+
+    # 4. Persist to database
+    prediction_row = _save_prediction(
+        user_id         = user_id,
+        ticker          = ticker,
+        predicted_label = predicted_label,
+        label_text      = label_text,
+        graham_value    = graham_value,
+        current_price   = current_price,
+        confidence      = confidence,
+        db              = db,
+    )
+
+    # 5. Return result
     return {
         "ticker":        ticker,
         "label":         label_text,
