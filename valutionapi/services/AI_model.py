@@ -6,14 +6,11 @@ Called once at startup so the model stays in memory for the entire session.
 
 import pickle
 from core.setting import settings
-import  os# wherever your settings module is
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_valuation_model():
     """Load the trained XGBoost classifier from disk."""
-    model_file = os.path.join(BASE_DIR, settings.model_path)
+    model_file = settings.model_path
     try:
         with open(model_file, "rb") as f:
             model = pickle.load(f)
@@ -31,7 +28,7 @@ def load_valuation_model():
 
 def load_model_columns():
     """Load the feature column names used during training."""
-    columns_file = os.path.join(BASE_DIR, settings.model_columns_path)
+    columns_file = settings.model_columns_path
     try:
         with open(columns_file, "rb") as f:
             columns = pickle.load(f)
