@@ -7,8 +7,11 @@ class Settings(BaseSettings):
     database_url: str = Field(default=f"sqlite:///{os.path.join(os.path.dirname(__file__), '..', 'stock_valuation.db')}", env="DATABASE_URL")
 
     # Model settings
-    model_path: str = Field(default=os.path.join(os.path.dirname(__file__), "..", "valuation_model_xgb.pkl"), env="MODEL_PATH")
-    model_columns_path: str = Field(default=os.path.join(os.path.dirname(__file__), "..", "model_columns.pkl"), env="MODEL_COLUMNS_PATH")
+    model_path: str = Field(
+        default=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "valuation_model_xgb.json")),
+        env="MODEL_PATH"
+    )
+    model_columns_path: str = Field(default=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "model_columns.pkl")), env="MODEL_COLUMNS_PATH")
 
     # API settings
     api_host: str = Field(default="0.0.0.0", env="API_HOST")

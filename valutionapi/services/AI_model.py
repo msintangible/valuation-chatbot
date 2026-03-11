@@ -8,23 +8,20 @@ import pickle
 from core.setting import settings
 
 
+from xgboost import XGBClassifier
+
 def load_valuation_model():
     """Load the trained XGBoost classifier from disk."""
     model_file = settings.model_path
     try:
-        with open(model_file, "rb") as f:
-            model = pickle.load(f)
+        model = XGBClassifier()
+        model.load_model(model_file)
         print("✓ Model loaded successfully.")
         return model
-
-    except FileNotFoundError:
-        print(f"✗ Error: {model_file} not found.")
-        raise
-
     except Exception as e:
-        print(f"✗ Error loading model: {e}")
-        raise
-
+        raise RuntimeError(f"Failed to load model from '{model_file}': {e}")
+    except  FileNotFoundError:
+        raise RuntimeError(f"Model file '{model_file}' not found.")
 
 def load_model_columns():
     """Load the feature column names used during training."""

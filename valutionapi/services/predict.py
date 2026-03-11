@@ -12,6 +12,7 @@ import yfinance as yf
 from sqlalchemy.orm import Session
 
 from models.models import Prediction, User
+from services.shap_explainer  import generate_shap_explanation
 
 # Maps yfinance sector strings to the sector names used in training
 # Training used: Technology, Financials, Healthcare, Discretionary,
@@ -66,13 +67,7 @@ def fetch_stock_features(ticker: str, model_columns: list):
 
     current_price = float(history["Close"].iloc[-1])
 
-    # ── 2. Market benchmarks ──────────────────────────────────────────────────
-    # Use reindex to align VIX/SP500 dates to the stock's date index
-    # This prevents NaN/0 from date mismatches between different tickers
-
     sp500 = yf.Ticker("^GSPC").history(period="5y")["Close"]
-
-
     # ── 3. Sector — map to training label ─────────────────────────────────────
     raw_sector = info.get("sector")
     if not raw_sector:
@@ -169,7 +164,7 @@ def fetch_stock_features(ticker: str, model_columns: list):
     df["Operating_Margin"] = operating_margin
     df["Momentum"]         = df["Close"].rolling(30).mean() / df["Close"].rolling(90).mean()
     df["Volatility"]       = df["Close"].pct_change().rolling(30).std()
-    df["SP500_Close"]      = sp500
+    df["sp500_close"]      = sp500
 
     # ── 11. Sector one-hot encoding ───────────────────────────────────────────
     # Mirrors pd.get_dummies(df, columns=['Sector']) from training
@@ -181,7 +176,7 @@ def fetch_stock_features(ticker: str, model_columns: list):
         "PE_Ratio", "ROE", "ROA", "EPS", "Dividend_Yield",
         "Debt_to_Equity", "Price_to_Book", "Price_to_Sales",
         "Revenue_Growth", "Operating_Margin",
-        "Momentum", "Volatility", "SP500_Close",
+        "Momentum", "Volatility","sp500_close",
         sector_col
     ]
 
@@ -333,11 +328,11 @@ def run_prediction(
         "predicted_at":  prediction_row.predicted_at.isoformat(),
     }
 
-#
-def run_prediction_scan(
-    ticker: str,
-    model,
-    model_columns: list,
+def run_prediction_shap(
+        ticker: str,
+        model,
+        model_columns: list,
+
 ) -> dict:
 
     # 1. Validate ticker
@@ -352,10 +347,16 @@ def run_prediction_scan(
     # 3. Run model
     predicted_label, label_text, confidence = run_model(model, aligned, LABEL_MAP)
 
+    # 4. Generate SHAP explanation
+    # 4. Generate SHAP explanation
+    explanation = generate_shap_explanation(model, aligned, label_text)
+
     return {
         "ticker":        ticker,
         "label":         label_text,
         "graham_value":  round(graham_value, 2),
         "current_price": round(current_price, 2),
         "confidence":    confidence,
+        "shap_summary":   explanation
+
     }

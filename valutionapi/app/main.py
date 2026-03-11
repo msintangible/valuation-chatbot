@@ -9,6 +9,7 @@ from  app.v1.endpoints.predict import router as predict_router
 from  app.v1.endpoints.users import router as users_router
 from  app.v1.endpoints.predictions import router as predictions_router
 from  app.v1.endpoints.watchlist import router as watchlist_router
+from  app.v1.endpoints.shap import router as shap_router
 # the router we will define
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ app.include_router(predict_router)
 app.include_router(users_router)
 app.include_router(predictions_router)
 app.include_router(watchlist_router)
+app.include_router(shap_router)
 
 
 # Root redirect to Swagger docs

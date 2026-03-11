@@ -4,7 +4,7 @@ from typing import Optional
 # Request schemas
 
 class UserRequest(BaseModel):
-    id: str
+    user_id: str
     username: Optional[str] = None
     channel_id: Optional[str] = None
 
@@ -16,3 +16,5 @@ class PredictionRequest(BaseModel):
 class PredictRequest(BaseModel):
     ticker: str
     user_id: str
+
+

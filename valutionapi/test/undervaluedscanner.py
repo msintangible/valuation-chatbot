@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.AI_model import load_valuation_model, load_model_columns
-from services.predict import  run_prediction_scan
+from services.predict import  run_prediction_shap
 
 SCAN_TICKERS = [
     # --- ENERGY (low P/E, high book value, model loves these) ---
@@ -35,7 +35,7 @@ model = load_valuation_model()
 model_columns = load_model_columns()
 for ticker in SCAN_TICKERS:
     try:
-        result = run_prediction_scan(ticker, model, model_columns)
+        result = run_prediction_shap(ticker, model, model_columns)
         if result["label"] == "Undervalued":
             print(
                 f"{result['ticker']:<6} | Price: {result['current_price']:>8.2f} | "
