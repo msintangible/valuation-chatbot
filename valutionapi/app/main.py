@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
+import os
 
 from db.database import init_db
 from services.AI_model import load_valuation_model, load_model_columns
@@ -10,6 +11,7 @@ from  app.v1.endpoints.users import router as users_router
 from  app.v1.endpoints.predictions import router as predictions_router
 from  app.v1.endpoints.watchlist import router as watchlist_router
 from  app.v1.endpoints.shap import router as shap_router
+from  app.v1.endpoints.portfolio import router as portfolio_router
 # the router we will define
 
 @asynccontextmanager
@@ -35,6 +37,7 @@ app.include_router(users_router)
 app.include_router(predictions_router)
 app.include_router(watchlist_router)
 app.include_router(shap_router)
+app.include_router(portfolio_router)
 
 
 # Root redirect to Swagger docs
@@ -44,4 +47,5 @@ def read_root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    reload_enabled = os.getenv("UVICORN_RELOAD", "0") == "1"
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=reload_enabled)
