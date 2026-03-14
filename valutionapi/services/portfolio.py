@@ -7,7 +7,7 @@ from services.predict import run_prediction_shap
 RISK_BASE_BY_LABEL = {
     "Undervalued": 0.2,
     "Fair Value": 0.5,
-    "Overvalued": 0.8,
+    "Overvalued": 0.3
 }
 
 
@@ -45,6 +45,9 @@ def run_portfolio_predictions(
                     "top_positive": shap_summary.get("top_positive_features", []),
                     "top_negative": shap_summary.get("top_negative_features", []),
                     "summary": shap_summary.get("summary", ""),
+                    "prediction_meaning": shap_summary.get("prediction_meaning", ""),
+                    "feature_impacts": shap_summary.get("feature_impacts", []),
+                    "beginner_guide": shap_summary.get("beginner_guide", {}),
                 },
             }
         )
@@ -85,6 +88,16 @@ def aggregate_portfolio_shap(stock_results: List[Dict], top_n: int = 5) -> Dict:
     for stock in stock_results:
         weight = float(stock.get("weight", 0.0))
         shap_summary = stock.get("shap_summary", {})
+        feature_impacts = shap_summary.get("feature_impacts", []) or []
+
+        if feature_impacts:
+            for impact in feature_impacts:
+                feature = str(impact.get("feature", "")).strip()
+                shap_value = float(impact.get("shap_value", 0.0))
+                if not feature:
+                    continue
+                weighted_feature_scores[feature] = weighted_feature_scores.get(feature, 0.0) + (shap_value * weight)
+            continue
 
         for raw_item in shap_summary.get("top_positive", []):
             feature, value = _parse_shap_feature(raw_item)
@@ -104,10 +117,17 @@ def aggregate_portfolio_shap(stock_results: List[Dict], top_n: int = 5) -> Dict:
     for feature, value in top_negative[:3]:
         portfolio_explanation.append(f"{feature} reduced portfolio risk contribution ({value:+.3f}).")
 
+    beginner_takeaway: List[str] = [
+        "Positive weighted SHAP means that feature is increasing the portfolio's current model risk signal.",
+        "Negative weighted SHAP means that feature is reducing the portfolio's current model risk signal.",
+        "Higher absolute values mean stronger influence on the portfolio decision.",
+    ]
+
     return {
         "top_positive_risk_factors": [f"{f} ({v:+.3f})" for f, v in top_positive],
         "top_negative_risk_factors": [f"{f} ({v:+.3f})" for f, v in top_negative],
         "feature_scores": {k: round(v, 6) for k, v in ranked[: max(top_n * 2, 10)]},
         "portfolio_explanation": portfolio_explanation,
+        "beginner_takeaway": beginner_takeaway,
     }
 

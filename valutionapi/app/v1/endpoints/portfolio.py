@@ -48,6 +48,7 @@ def predict_portfolio(predict_request: PortfolioPredictRequest, request: Request
             "aggregated_shap": {
                 "top_positive_risk_factors": shap_agg.get("top_positive_risk_factors", []),
                 "top_negative_risk_factors": shap_agg.get("top_negative_risk_factors", []),
+                "beginner_takeaway": shap_agg.get("beginner_takeaway", []),
             },
         }
 

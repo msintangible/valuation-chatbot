@@ -2,13 +2,43 @@
 shap_explainer.py
 -----------------
 Implements SHAP explainability for XGBoost model predictions.
-Provides feature attributions and natural language explanations.
+Provides feature attributions and beginner-friendly explanations.
 """
 
-import shap
-import numpy as np
-import time
 from typing import Dict, List, Tuple
+
+import numpy as np
+import shap
+
+
+LABEL_EXPLANATION = {
+    "Undervalued": "The model sees signs the stock may be priced below its fundamentals.",
+    "Fair Value": "The model sees the stock as roughly in line with its fundamentals.",
+    "Overvalued": "The model sees signs the stock may be priced above its fundamentals.",
+}
+
+
+def _impact_level(abs_shap_value: float) -> str:
+    if abs_shap_value < 0.05:
+        return "low"
+    if abs_shap_value < 0.15:
+        return "medium"
+    return "high"
+
+
+def _feature_investor_message(label: str, direction: str) -> str:
+    if direction == "supports_prediction":
+        if label == "Undervalued":
+            return "This feature strengthens the model's undervalued signal (potential upside)."
+        if label == "Overvalued":
+            return "This feature strengthens the model's overvalued signal (possible downside risk)."
+        return "This feature supports a neutral/fair-value view."
+
+    if label == "Undervalued":
+        return "This feature weakens the undervalued signal."
+    if label == "Overvalued":
+        return "This feature weakens the overvalued signal."
+    return "This feature pushes against the fair-value view."
 
 
 def generate_shap_explanation(model, input_df, prediction_label: str) -> Dict:
@@ -51,10 +81,40 @@ def generate_shap_explanation(model, input_df, prediction_label: str) -> Dict:
 
         summary = _generate_summary(prediction_label, top_positive, top_negative)
 
+        top_impacts = feature_contributions[:10]
+        feature_impacts = []
+        for name, value in top_impacts:
+            direction = "supports_prediction" if value > 0 else "opposes_prediction"
+            feature_impacts.append(
+                {
+                    "feature": name,
+                    "shap_value": round(float(value), 6),
+                    "absolute_impact": round(float(abs(value)), 6),
+                    "direction_for_predicted_label": direction,
+                    "impact_level": _impact_level(abs(float(value))),
+                    "investor_meaning": _feature_investor_message(prediction_label, direction),
+                }
+            )
+
+        shap_reading_guide = (
+            "For this stock, positive SHAP values support the predicted label "
+            f"('{prediction_label}'). Negative SHAP values push against it. "
+            "A larger absolute SHAP value means stronger influence."
+        )
+
         return {
             "top_positive_features": top_positive_features,
             "top_negative_features": top_negative_features,
-            "summary": summary
+            "summary": summary,
+            "prediction_meaning": LABEL_EXPLANATION.get(prediction_label, ""),
+            "feature_impacts": feature_impacts,
+            "beginner_guide": {
+                "how_to_read_shap": shap_reading_guide,
+                "is_high_shap_good_or_bad": (
+                    "It depends on the predicted label. High positive SHAP is good for an "
+                    "'Undervalued' view, but concerning for an 'Overvalued' view."
+                ),
+            },
         }
 
     except Exception as e:
@@ -81,7 +141,11 @@ def _generate_summary(prediction_label: str, top_positive: List[Tuple[str, float
         neg_str = ", ".join([f"{name} ({val:.2f})" for name, val in top_negative[:3]])
         summary_parts.append(f"offset by {neg_str}")
 
-    summary = f"{prediction_label} " + " and ".join(summary_parts) + "."
+    summary = (
+        f"{prediction_label}: {LABEL_EXPLANATION.get(prediction_label, '')} "
+        + " and ".join(summary_parts)
+        + "."
+    )
 
     return summary
 
@@ -109,11 +173,27 @@ def _fallback_explanation(model, input_df, prediction_label: str) -> Dict:
         return {
             "top_positive_features": top_positive_features,
             "top_negative_features": top_negative_features,
-            "summary": summary
+            "summary": summary,
+            "prediction_meaning": LABEL_EXPLANATION.get(prediction_label, ""),
+            "feature_impacts": [],
+            "beginner_guide": {
+                "how_to_read_shap": (
+                    "Fallback mode: using feature importance only, not true SHAP direction."
+                ),
+                "is_high_shap_good_or_bad": (
+                    "This fallback does not provide positive/negative SHAP direction."
+                ),
+            },
         }
     except Exception:
         return {
             "top_positive_features": [],
             "top_negative_features": [],
-            "summary": f"{prediction_label} - explanation not available."
+            "summary": f"{prediction_label} - explanation not available.",
+            "prediction_meaning": LABEL_EXPLANATION.get(prediction_label, ""),
+            "feature_impacts": [],
+            "beginner_guide": {
+                "how_to_read_shap": "Explanation unavailable for this request.",
+                "is_high_shap_good_or_bad": "Not available.",
+            },
         }

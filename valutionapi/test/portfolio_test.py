@@ -21,6 +21,12 @@ class TestPortfolioWorkflow(unittest.TestCase):
                         "top_positive_features": ["Volatility (+0.300)", "Momentum (+0.100)"],
                         "top_negative_features": ["Revenue_Growth (-0.200)"],
                         "summary": "Undervalued driven by volatility and momentum.",
+                        "prediction_meaning": "The model sees signs the stock may be priced below its fundamentals.",
+                        "feature_impacts": [
+                            {"feature": "Volatility", "shap_value": 0.300},
+                            {"feature": "Momentum", "shap_value": 0.100},
+                            {"feature": "Revenue_Growth", "shap_value": -0.200},
+                        ],
                     },
                 },
                 "TSLA": {
@@ -31,6 +37,11 @@ class TestPortfolioWorkflow(unittest.TestCase):
                         "top_positive_features": ["Debt_to_Equity (+0.250)"],
                         "top_negative_features": ["EPS (-0.150)"],
                         "summary": "Fair Value with mixed contributors.",
+                        "prediction_meaning": "The model sees the stock as roughly in line with its fundamentals.",
+                        "feature_impacts": [
+                            {"feature": "Debt_to_Equity", "shap_value": 0.250},
+                            {"feature": "EPS", "shap_value": -0.150},
+                        ],
                     },
                 },
                 "NVDA": {
@@ -41,6 +52,11 @@ class TestPortfolioWorkflow(unittest.TestCase):
                         "top_positive_features": ["Volatility (+0.200)"],
                         "top_negative_features": ["Operating_Margin (-0.100)"],
                         "summary": "Overvalued primarily due to volatility.",
+                        "prediction_meaning": "The model sees signs the stock may be priced above its fundamentals.",
+                        "feature_impacts": [
+                            {"feature": "Volatility", "shap_value": 0.200},
+                            {"feature": "Operating_Margin", "shap_value": -0.100},
+                        ],
                     },
                 },
             }
@@ -82,6 +98,7 @@ class TestPortfolioWorkflow(unittest.TestCase):
         self.assertTrue(any("Volatility" in item for item in shap_agg["top_positive_risk_factors"]))
         self.assertTrue(any("Revenue_Growth" in item for item in shap_agg["top_negative_risk_factors"]))
         self.assertGreater(len(shap_agg.get("portfolio_explanation", [])), 0)
+        self.assertGreater(len(shap_agg.get("beginner_takeaway", [])), 0)
 
     def test_classification_boundaries(self):
         self.assertEqual(portfolio_service.classify_portfolio_risk(0.32), "Low Risk")
