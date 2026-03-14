@@ -8,7 +8,6 @@ Returns a fully aligned row ready for model.predict().
 import time
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from sqlalchemy.orm import Session
 
 from models.models import Prediction, User
@@ -49,6 +48,7 @@ def fetch_stock_features(ticker: str, model_columns: list):
     Raises:
         ValueError with a clear message if any critical field is missing.
     """
+    import yfinance as yf
 
     ticker = ticker.upper().strip()
 
@@ -218,6 +218,8 @@ LABEL_MAP = {0: "Undervalued", 1: "Fair Value", 2: "Overvalued"}
 
 def validate_ticker(ticker: str) -> str:
     """Normalise, format-check, and verify the ticker exists in yfinance."""
+    import yfinance as yf
+
     ticker = ticker.upper().strip()
 
     if not ticker or len(ticker) > 10:
