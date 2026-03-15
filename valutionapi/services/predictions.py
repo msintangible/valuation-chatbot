@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from models.models import User, UserPreference, Prediction, RequestLog
+from models.models import User, Prediction, RequestLog
 
 # ── PREDICTIONS ───────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, field_validator, model_validator
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Any, Dict, Optional, List
 
 # Request schemas
 
@@ -20,6 +20,7 @@ class PredictRequest(BaseModel):
 class PortfolioPredictRequest(BaseModel):
     user_id: str
     tickers: List[str]
+    portfolio_name: str
     weights: List[float]
 
     @field_validator("tickers")
@@ -48,4 +49,35 @@ class PortfolioPredictRequest(BaseModel):
         if len(self.tickers) != len(self.weights):
             raise ValueError("Number of weights must match number of tickers.")
         return self
+
+
+class PortfolioCreateRequest(BaseModel):
+    user_id: str
+    name: str  # e.g. "Growth", "Retirement"
+
+
+class PortfolioHoldingRequest(BaseModel):
+    ticker: str
+    shares: float = 1.0   # number of shares held
+
+class SuggestionItem(BaseModel):
+    ticker: str
+    predicted_label: int
+    label_text: Optional[str] = None
+    graham_value: Optional[float] = None
+    current_price: Optional[float] = None
+    confidence: Optional[float] = None
+    shap_summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+class UserSuggestionsResponse(BaseModel):
+    user_id: str
+    top_sector: Optional[str] = None
+    suggestions: List[SuggestionItem]
+
+
+class PortfolioSuggestionsResponse(BaseModel):
+    user_id: str
+    top_sectors: List[str]
+    suggestions: List[SuggestionItem]
 

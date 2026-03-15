@@ -5,6 +5,7 @@ Fetches, engineers, and encodes features for a single stock ticker.
 Returns a fully aligned row ready for model.predict().
 """
 
+import json
 import time
 import numpy as np
 import pandas as pd
@@ -265,9 +266,12 @@ def _save_prediction(
     graham_value: float,
     current_price: float,
     confidence: float,
+    shap_summary: dict,
     db: Session,
 ) -> Prediction:
-    """Persist a Prediction row and return the refreshed ORM object."""
+    """Persist a Prediction row and return the refreshed ORM object.
+    :param shap_summary:
+    """
     prediction_row = Prediction(
         user_id         = user_id,
         ticker          = ticker,
@@ -276,6 +280,32 @@ def _save_prediction(
         graham_value    = round(graham_value, 2),
         current_price   = round(current_price, 2),
         confidence      = confidence,
+        shap_summary    = json.dumps(shap_summary)
+    )
+    try:
+        db.add(prediction_row)
+        db.commit()
+        db.refresh(prediction_row)
+    except Exception as e:
+        db.rollback() # Ensure we don't leave the session in a broken state
+        raise RuntimeError(f"Database write failed for '{ticker}': {e}") from e
+
+    return prediction_row
+
+def save_prediction(user_id: str, ticker: str, predicted_label: int, label_text: str, graham_value: float,
+                     current_price: float, confidence: float, db: Session  ) -> Prediction:
+    """Persist a Prediction row and return the refreshed ORM object.
+    :param shap_summary:
+    """
+    prediction_row = Prediction(
+        user_id         = user_id,
+        ticker          = ticker,
+        predicted_label = predicted_label,
+        label_text      = label_text,
+        graham_value    = round(graham_value, 2),
+        current_price   = round(current_price, 2),
+        confidence      = confidence,
+
     )
     try:
         db.add(prediction_row)
@@ -309,16 +339,9 @@ def run_prediction(
     predicted_label, label_text, confidence = run_model(model, aligned, LABEL_MAP)
 
     # 4. Persist to database
-    prediction_row = _save_prediction(
-        user_id         = user_id,
-        ticker          = ticker,
-        predicted_label = predicted_label,
-        label_text      = label_text,
-        graham_value    = graham_value,
-        current_price   = current_price,
-        confidence      = confidence,
-        db              = db,
-    )
+    prediction_row = save_prediction(user_id=user_id, ticker=ticker, predicted_label=predicted_label,
+                                      label_text=label_text, graham_value=graham_value, current_price=current_price,
+                                      confidence=confidence, db=db)
 
     # 5. Return result
     return {
@@ -331,6 +354,8 @@ def run_prediction(
     }
 
 def run_prediction_shap(
+        db: Session,
+        user_id: str,
         ticker: str,
         model,
         model_columns: list,
@@ -339,6 +364,7 @@ def run_prediction_shap(
 
     # 1. Validate ticker
     ticker = validate_ticker(ticker)
+    validate_user_exists(user_id, db)
 
     # 2. Fetch features
     try:
@@ -352,6 +378,18 @@ def run_prediction_shap(
     # 4. Generate SHAP explanation
     # 4. Generate SHAP explanation
     explanation = generate_shap_explanation(model, aligned, label_text)
+    # 4. Persist to database
+    prediction_row = _save_prediction(
+        user_id=user_id,
+        ticker=ticker,
+        predicted_label=predicted_label,
+        label_text=label_text,
+        graham_value=graham_value,
+        current_price=current_price,
+        confidence=confidence,
+        shap_summary=explanation,
+        db=db,
+    )
 
     return {
         "ticker":        ticker,

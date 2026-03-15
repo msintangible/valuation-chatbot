@@ -1,10 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Request
+from sqlalchemy.orm import Session
 from services.predict import run_prediction_shap
 from schemas.schemas import PredictRequest
-router = APIRouter(prefix="/explain", tags=["Scan"])
+from db.database import get_db
+router = APIRouter(prefix="/explain", tags=["Explain"])
 @router.post("/")
-def predict_stock_shap(predict_request: PredictRequest, request: Request):
+def predict_stock_shap(
+    predict_request: PredictRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """
     Run stock prediction for a user.
     Uses the preloaded model and feature columns from app.state.
@@ -15,8 +21,10 @@ def predict_stock_shap(predict_request: PredictRequest, request: Request):
 
     try:
         result = run_prediction_shap(
+            db=db,
             ticker=ticker,
             model=model,
+            user_id=predict_request.user_id,
             model_columns=model_columns,
         )
         return result
