@@ -49,4 +49,4 @@ def read_root():
 if __name__ == "__main__":
     import uvicorn
     reload_enabled = os.getenv("UVICORN_RELOAD", "0") == "1"
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=reload_enabled)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=reload_enabled)
