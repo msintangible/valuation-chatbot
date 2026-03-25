@@ -1,0 +1,5 @@
+Model,Accuracy,Macro F1,Underval F1,Fair Val F1,Overval F1,Selected
+XGBoost,63.7%,0.632,0.689,0.487,0.721,YES
+Random Forest,63.3%,0.623,0.655,0.515,0.700,
+MLP Neural Net,60.5%,0.596,0.542,0.575,0.672,
+KNN,55.7%,0.557,0.605,0.469,0.598,
