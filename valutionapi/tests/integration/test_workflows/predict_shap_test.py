@@ -1,9 +1,11 @@
 import os
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from services.AI_model import load_valuation_model, load_model_columns
-from services.predict import run_prediction_shap
+from services.predict import run_prediction_shap2
 
 SCAN_TICKERS = [
     "XOM", "CVX", "COP", "JPM", "BAC", "WFC",
@@ -23,7 +25,7 @@ print("=" * 70)
 
 for ticker in SCAN_TICKERS:
     try:
-        result       = run_prediction_shap(ticker, model, model_columns)
+        result       = run_prediction_shap2(ticker, model, model_columns)
         shap_summary = result.get("shap_summary", {})
 
         if "explanation_error" in shap_summary:

@@ -400,3 +400,40 @@ def run_prediction_shap(
         "shap_summary":   explanation
 
     }
+
+def run_prediction_shap2(
+
+
+        ticker: str,
+        model,
+        model_columns: list,
+
+) -> dict:
+
+    # 1. Validate ticker
+    ticker = validate_ticker(ticker)
+
+
+    # 2. Fetch features
+    try:
+        aligned, graham_value, current_price = fetch_stock_features(ticker, model_columns)
+    except Exception as e:
+        raise ValueError(f"Could not fetch features for '{ticker}': {e}") from e
+
+    # 3. Run model
+    predicted_label, label_text, confidence = run_model(model, aligned, LABEL_MAP)
+
+    # 4. Generate SHAP explanation
+    # 4. Generate SHAP explanation
+    explanation = generate_shap_explanation(model, aligned, label_text)
+
+
+    return {
+        "ticker":        ticker,
+        "label":         label_text,
+        "graham_value":  round(graham_value, 2),
+        "current_price": round(current_price, 2),
+        "confidence":    confidence,
+        "shap_summary":   explanation
+
+    }

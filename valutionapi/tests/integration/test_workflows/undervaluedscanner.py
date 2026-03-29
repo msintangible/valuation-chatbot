@@ -1,8 +1,10 @@
 import os
 import sys
-
+from pathlib import Path
 # Add parent directory to path so we can import modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from services.AI_model import load_valuation_model, load_model_columns
 from services.predict import  run_prediction_shap
