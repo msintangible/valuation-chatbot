@@ -12,9 +12,6 @@ from services.recommendation_service import (
 router = APIRouter(tags=["Suggestions"])
 
 
-
-
-
 @router.get("/suggestions/{user_id}", response_model=UserSuggestionsResponse)
 def get_user_suggestions(
     user_id: str,

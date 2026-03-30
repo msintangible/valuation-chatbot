@@ -1,35 +1,132 @@
 import os
 import sys
+from pathlib import Path
 
 # Add parent directory to path so we can import modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from services.AI_model import load_valuation_model, load_model_columns
-from services.predict import  run_prediction_shap
+from services.predict import run_prediction_shap
 
 SCAN_TICKERS = [
     # --- ENERGY (low P/E, high book value, model loves these) ---
-    "XOM", "CVX", "COP", "OXY", "DVN", "MRO", "HAL", "SLB", "PSX", "VLO",
-    "MPC", "HES", "EOG", "PXD", "BP", "SHEL", "TTE", "E", "EC", "YPF",
-
+    "XOM",
+    "CVX",
+    "COP",
+    "OXY",
+    "DVN",
+    "MRO",
+    "HAL",
+    "SLB",
+    "PSX",
+    "VLO",
+    "MPC",
+    "HES",
+    "EOG",
+    "PXD",
+    "BP",
+    "SHEL",
+    "TTE",
+    "E",
+    "EC",
+    "YPF",
     # --- FINANCIALS (low P/B, decent ROE, your Graham formula works here) ---
-    "JPM", "BAC", "WFC", "C", "USB", "PNC", "TFC", "CFG", "KEY", "HBAN",
-    "RF", "FITB", "MTB", "ZION", "FHN", "BEN", "IVZ", "GS", "MS", "MET",
-
+    "JPM",
+    "BAC",
+    "WFC",
+    "C",
+    "USB",
+    "PNC",
+    "TFC",
+    "CFG",
+    "KEY",
+    "HBAN",
+    "RF",
+    "FITB",
+    "MTB",
+    "ZION",
+    "FHN",
+    "BEN",
+    "IVZ",
+    "GS",
+    "MS",
+    "MET",
     # --- INDUSTRIALS (steady earnings, real assets) ---
-    "GE", "HON", "MMM", "CAT", "DE", "EMR", "ETN", "PH", "ITW", "DOV",
-    "ROK", "IR", "CARR", "TXT", "LMT", "NOC", "RTX", "GD", "HII", "BWA",
-
+    "GE",
+    "HON",
+    "MMM",
+    "CAT",
+    "DE",
+    "EMR",
+    "ETN",
+    "PH",
+    "ITW",
+    "DOV",
+    "ROK",
+    "IR",
+    "CARR",
+    "TXT",
+    "LMT",
+    "NOC",
+    "RTX",
+    "GD",
+    "HII",
+    "BWA",
     # --- HEALTHCARE / PHARMA (strong EPS, beaten down valuations) ---
-    "JNJ", "PFE", "MRK", "ABBV", "BMY", "GILD", "CVS", "CI", "HUM", "CNC",
-    "MOH", "AMGN", "BIIB", "VTRS", "OGN", "JAZZ", "PBH", "PRGO", "ENR", "BCO",
-
+    "JNJ",
+    "PFE",
+    "MRK",
+    "ABBV",
+    "BMY",
+    "GILD",
+    "CVS",
+    "CI",
+    "HUM",
+    "CNC",
+    "MOH",
+    "AMGN",
+    "BIIB",
+    "VTRS",
+    "OGN",
+    "JAZZ",
+    "PBH",
+    "PRGO",
+    "ENR",
+    "BCO",
     # --- STAPLES (consistent EPS, dividends, model likes dividend yield) ---
-    "KO", "PEP", "KHC", "MO", "BTI", "GIS", "K", "CPB", "CAG", "SJM",
-    "HRL", "TSN", "PG", "CL", "CHD", "SPB", "CENT", "COTY", "KR", "SFM",
-
+    "KO",
+    "PEP",
+    "KHC",
+    "MO",
+    "BTI",
+    "GIS",
+    "K",
+    "CPB",
+    "CAG",
+    "SJM",
+    "HRL",
+    "TSN",
+    "PG",
+    "CL",
+    "CHD",
+    "SPB",
+    "CENT",
+    "COTY",
+    "KR",
+    "SFM",
     # --- BEATEN DOWN / LOW P/E ---
-    "INTC", "BA", "T", "VZ", "DIS", "WBD", "PARA", "F", "GM", "STLA",
+    "INTC",
+    "BA",
+    "T",
+    "VZ",
+    "DIS",
+    "WBD",
+    "PARA",
+    "F",
+    "GM",
+    "STLA",
 ]
 model = load_valuation_model()
 model_columns = load_model_columns()

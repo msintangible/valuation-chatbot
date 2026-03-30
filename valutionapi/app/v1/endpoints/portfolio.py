@@ -29,7 +29,8 @@ from services.crud_portfolio import (
     delete_portfolio,
     add_holding,
     get_holdings,
-    remove_holding, get_holdings_with_shares,
+    remove_holding,
+    get_holdings_with_shares,
 )
 
 router = APIRouter(prefix="/predict", tags=["Predictions"])
@@ -37,11 +38,12 @@ router = APIRouter(prefix="/predict", tags=["Predictions"])
 
 # ── Portfolio Prediction ──────────────────────────────────────────────────────
 
+
 @router.post("/portfolio")
 def predict_portfolio(
     predict_request: PortfolioPredictRequest,
-    request:         Request,
-    db:              Session = Depends(get_db),
+    request: Request,
+    db: Session = Depends(get_db),
 ):
     """
     Run weighted multi-ticker predictions for a named portfolio.
@@ -49,34 +51,34 @@ def predict_portfolio(
     Saves each prediction to the predictions table and each ticker to portfolio_holdings.
     Updates cached risk fields on the Portfolio row.
     """
-    model         = request.app.state.model
+    model = request.app.state.model
     model_columns = request.app.state.model_columns
 
     try:
-        stock_results       = run_portfolio_predictions(
-            user_id        = predict_request.user_id,
-            portfolio_name = predict_request.portfolio_name,
-            tickers        = predict_request.tickers,
-            weights        = predict_request.weights,
-            model          = model,
-            model_columns  = model_columns,
-            db             = db,
+        stock_results = run_portfolio_predictions(
+            user_id=predict_request.user_id,
+            portfolio_name=predict_request.portfolio_name,
+            tickers=predict_request.tickers,
+            weights=predict_request.weights,
+            model=model,
+            model_columns=model_columns,
+            db=db,
         )
-        risk_score          = compute_portfolio_risk_score(stock_results)
+        risk_score = compute_portfolio_risk_score(stock_results)
         risk_classification = classify_portfolio_risk(risk_score)
-        shap_agg            = aggregate_portfolio_shap(stock_results)
+        shap_agg = aggregate_portfolio_shap(stock_results)
 
         return {
-            "portfolio_name":          predict_request.portfolio_name,
-            "portfolio_risk_score":    risk_score,
-            "portfolio_classification":risk_classification,
+            "portfolio_name": predict_request.portfolio_name,
+            "portfolio_risk_score": risk_score,
+            "portfolio_classification": risk_classification,
             "stocks": [
                 {
-                    "ticker":      item["ticker"],
-                    "prediction":  item["prediction"],
+                    "ticker": item["ticker"],
+                    "prediction": item["prediction"],
                     "probability": item["probability"],
-                    "weight":      item["weight"],
-                    "shap_summary":item["shap_summary"],
+                    "weight": item["weight"],
+                    "shap_summary": item["shap_summary"],
                 }
                 for item in stock_results
             ],
@@ -84,7 +86,7 @@ def predict_portfolio(
             "aggregated_shap": {
                 "top_positive_risk_factors": shap_agg.get("top_positive_risk_factors", []),
                 "top_negative_risk_factors": shap_agg.get("top_negative_risk_factors", []),
-                "beginner_takeaway":         shap_agg.get("beginner_takeaway", []),
+                "beginner_takeaway": shap_agg.get("beginner_takeaway", []),
             },
         }
 
@@ -96,16 +98,15 @@ def predict_portfolio(
 
 @router.post("/portfolio/{user_id}/{name}/predict")
 def predict_saved_portfolio(
-        user_id: str,
-        name: str,
-        request: Request,
-        db: Session = Depends(get_db),
+    user_id: str,
+    name: str,
+    request: Request,
+    db: Session = Depends(get_db),
 ):
     """
     Run predictions on a saved portfolio using holdings from the DB.
     Weight = (shares x current_price) / total_portfolio_value for each holding.
     """
-
 
     portfolio = get_portfolio(db, user_id=user_id, name=name)
     if not portfolio:
@@ -180,10 +181,11 @@ def predict_saved_portfolio(
 
 # ── Portfolio CRUD ────────────────────────────────────────────────────────────
 
+
 @router.post("/portfolio/create")
 def create_user_portfolio(
     body: PortfolioCreateRequest,
-    db:   Session = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Create a new named portfolio for a user."""
     if not body.user_id or not body.name:
@@ -197,14 +199,14 @@ def list_portfolios(user_id: str, db: Session = Depends(get_db)):
     portfolios = get_portfolios(db, user_id=user_id)
     return [
         {
-            "id":             p.id,
-            "name":           p.name,
-            "risk_label":     p.risk_label,
-            "risk_score":     p.risk_score,
+            "id": p.id,
+            "name": p.name,
+            "risk_label": p.risk_label,
+            "risk_score": p.risk_score,
             "pct_overvalued": p.pct_overvalued,
             "avg_confidence": p.avg_confidence,
-            "assessed_at":    p.assessed_at,
-            "created_at":     p.created_at,
+            "assessed_at": p.assessed_at,
+            "created_at": p.created_at,
         }
         for p in portfolios
     ]
@@ -217,14 +219,14 @@ def get_user_portfolio(user_id: str, name: str, db: Session = Depends(get_db)):
     if not portfolio:
         raise HTTPException(status_code=404, detail=f"Portfolio '{name}' not found.")
     return {
-        "id":             portfolio.id,
-        "name":           portfolio.name,
-        "risk_label":     portfolio.risk_label,
-        "risk_score":     portfolio.risk_score,
+        "id": portfolio.id,
+        "name": portfolio.name,
+        "risk_label": portfolio.risk_label,
+        "risk_score": portfolio.risk_score,
         "pct_overvalued": portfolio.pct_overvalued,
         "avg_confidence": portfolio.avg_confidence,
-        "assessed_at":    portfolio.assessed_at,
-        "holdings":       get_holdings(db, portfolio.id),
+        "assessed_at": portfolio.assessed_at,
+        "holdings": get_holdings(db, portfolio.id),
     }
 
 
@@ -239,12 +241,13 @@ def delete_user_portfolio(user_id: str, name: str, db: Session = Depends(get_db)
 
 # ── Holdings CRUD ─────────────────────────────────────────────────────────────
 
+
 @router.post("/portfolio/{user_id}/{name}/add")
 def add_ticker_to_portfolio(
     user_id: str,
-    name:    str,
-    body:    PortfolioHoldingRequest,
-    db:      Session = Depends(get_db),
+    name: str,
+    body: PortfolioHoldingRequest,
+    db: Session = Depends(get_db),
 ):
     """Add a ticker to a named portfolio."""
     portfolio = get_portfolio(db, user_id=user_id, name=name)
@@ -256,9 +259,9 @@ def add_ticker_to_portfolio(
 @router.delete("/portfolio/{user_id}/{name}/{ticker}")
 def remove_ticker_from_portfolio(
     user_id: str,
-    name:    str,
-    ticker:  str,
-    db:      Session = Depends(get_db),
+    name: str,
+    ticker: str,
+    db: Session = Depends(get_db),
 ):
     """Remove a ticker from a named portfolio."""
     portfolio = get_portfolio(db, user_id=user_id, name=name)

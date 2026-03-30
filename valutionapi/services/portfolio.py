@@ -11,15 +11,13 @@ from typing import Dict, List
 from sqlalchemy.orm import Session
 
 from services.predict import run_prediction_shap
-from services.crud_portfolio import (
-    update_portfolio_risk,create_portfolio, get_portfolio, add_holding
-)
-from services.request_logs import  log_request
+from services.crud_portfolio import update_portfolio_risk, create_portfolio, get_portfolio, add_holding
+from services.request_logs import log_request
 
 RISK_BASE_BY_LABEL = {
     "Undervalued": 0.2,
-    "Fair Value":  0.5,
-    "Overvalued":  0.3,
+    "Fair Value": 0.5,
+    "Overvalued": 0.3,
 }
 
 
@@ -62,8 +60,6 @@ def _normalize_feature_entries(entries) -> List[Dict]:
     return normalized
 
 
-
-
 def _risk_from_label_and_confidence(label: str, confidence: float) -> float:
     """Blend label base risk with model confidence to avoid extreme swings."""
     base = RISK_BASE_BY_LABEL.get(label, 0.5)
@@ -71,13 +67,13 @@ def _risk_from_label_and_confidence(label: str, confidence: float) -> float:
 
 
 def run_portfolio_predictions(
-        user_id: str,
-        portfolio_name: str,
-        tickers: List[str],
-        weights: List[float],
-        model,
-        model_columns: List[str],
-        db: Session,
+    user_id: str,
+    portfolio_name: str,
+    tickers: List[str],
+    weights: List[float],
+    model,
+    model_columns: List[str],
+    db: Session,
 ) -> List[Dict]:
     """
     Run per-ticker SHAP predictions for a portfolio.
@@ -114,34 +110,33 @@ def run_portfolio_predictions(
         # 3 — save ticker to portfolio_holdings (ignores duplicate silently)
         add_holding(db, portfolio_id=portfolio.id, ticker=ticker)
 
-        results.append({
-            "ticker": ticker,
-            "prediction": label,
-            "probability": probability,
-            "weight": float(weight),
-            "risk_component": _risk_from_label_and_confidence(label, probability),
-            "graham_value": item.get("graham_value"),
-            "current_price": item.get("current_price"),
-            "shap_summary": {
-                "top_positive": shap_summary.get("top_positive_features", []),
-                "top_negative": shap_summary.get("top_negative_features", []),
-                "summary": shap_summary.get("summary", ""),
-                "prediction_meaning": shap_summary.get("prediction_meaning", ""),
-                "feature_impacts": shap_summary.get("feature_impacts", []),
-                "beginner_guide": shap_summary.get("beginner_guide", {}),
-            },
-        })
+        results.append(
+            {
+                "ticker": ticker,
+                "prediction": label,
+                "probability": probability,
+                "weight": float(weight),
+                "risk_component": _risk_from_label_and_confidence(label, probability),
+                "graham_value": item.get("graham_value"),
+                "current_price": item.get("current_price"),
+                "shap_summary": {
+                    "top_positive": shap_summary.get("top_positive_features", []),
+                    "top_negative": shap_summary.get("top_negative_features", []),
+                    "summary": shap_summary.get("summary", ""),
+                    "prediction_meaning": shap_summary.get("prediction_meaning", ""),
+                    "feature_impacts": shap_summary.get("feature_impacts", []),
+                    "beginner_guide": shap_summary.get("beginner_guide", {}),
+                },
+            }
+        )
 
     # 4 — cache risk assessment on the portfolio row
     risk_score = compute_portfolio_risk_score(results)
     risk_label = classify_portfolio_risk(risk_score)
-    pct_overvalued = round(
-        sum(1 for r in results if r["prediction"] == "Overvalued")
-        / len(results) * 100, 2
-    ) if results else 0.0
-    avg_confidence = round(
-        sum(r["probability"] for r in results) / len(results), 4
-    ) if results else 0.0
+    pct_overvalued = (
+        round(sum(1 for r in results if r["prediction"] == "Overvalued") / len(results) * 100, 2) if results else 0.0
+    )
+    avg_confidence = round(sum(r["probability"] for r in results) / len(results), 4) if results else 0.0
 
     update_portfolio_risk(
         db=db,
@@ -170,9 +165,7 @@ def compute_portfolio_risk_score(stock_results: List[Dict]) -> float:
     total_weight = sum(r["weight"] for r in stock_results)
     if total_weight == 0:
         return 0.5
-    return round(
-        sum(r["risk_component"] * r["weight"] for r in stock_results) / total_weight, 4
-    )
+    return round(sum(r["risk_component"] * r["weight"] for r in stock_results) / total_weight, 4)
 
 
 def classify_portfolio_risk(risk_score: float) -> str:
@@ -205,18 +198,19 @@ def aggregate_portfolio_shap(stock_results: List[Dict]) -> Dict:
 
     top_positive = sorted(
         [{"feature": k, "weighted_shap": round(v, 4)} for k, v in positive_scores.items()],
-        key=lambda x: x["weighted_shap"], reverse=True
+        key=lambda x: x["weighted_shap"],
+        reverse=True,
     )[:5]
 
     top_negative = sorted(
-        [{"feature": k, "weighted_shap": round(v, 4)} for k, v in negative_scores.items()],
-        key=lambda x: x["weighted_shap"]
+        [{"feature": k, "weighted_shap": round(v, 4)} for k, v in negative_scores.items()], key=lambda x: x["weighted_shap"]
     )[:5]
 
-    pct_overvalued = round(
-        sum(1 for r in stock_results if r["prediction"] == "Overvalued")
-        / len(stock_results) * 100, 1
-    ) if stock_results else 0.0
+    pct_overvalued = (
+        round(sum(1 for r in stock_results if r["prediction"] == "Overvalued") / len(stock_results) * 100, 1)
+        if stock_results
+        else 0.0
+    )
 
     takeaway = (
         f"{pct_overvalued}% of your holdings are currently Overvalued. "
@@ -226,9 +220,6 @@ def aggregate_portfolio_shap(stock_results: List[Dict]) -> Dict:
     return {
         "top_positive_risk_factors": top_positive,
         "top_negative_risk_factors": top_negative,
-        "portfolio_explanation": [
-            _load_shap_summary(r.get("shap_summary", {})).get("summary", "")
-            for r in stock_results
-        ],
+        "portfolio_explanation": [_load_shap_summary(r.get("shap_summary", {})).get("summary", "") for r in stock_results],
         "beginner_takeaway": takeaway,
     }

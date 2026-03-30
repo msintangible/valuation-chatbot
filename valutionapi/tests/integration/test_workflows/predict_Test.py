@@ -1,4 +1,3 @@
-
 """
 test_features.py
 ----------------
@@ -9,6 +8,13 @@ Usage:
 """
 
 import pickle
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from services.predict import fetch_stock_features
 
 # ── Load model columns ────────────────────────────────────────────────────────
@@ -21,12 +27,12 @@ for col in model_columns:
 print()
 
 # ── Test tickers — mix of sectors ─────────────────────────────────────────────
-test_tickers = ["AAPL", "JPM", "XOM", "JNJ", "TSLA","MO","MCD"]
+test_tickers = ["AAPL", "JPM", "XOM", "JNJ", "TSLA", "MO", "MCD"]
 
 for ticker in test_tickers:
     print(f"\n{'='*55}")
     print(f"  {ticker}")
-    print('='*55)
+    print("=" * 55)
 
     try:
         aligned, graham_value, current_price = fetch_stock_features(ticker, model_columns)
@@ -38,12 +44,12 @@ for ticker in test_tickers:
 
         # Show every column and its value
         for col in aligned.columns:
-            val  = aligned[col].iloc[0]
+            val = aligned[col].iloc[0]
             flag = " ⚠ ZERO" if val == 0 and not col.startswith("Sector_") else ""
             print(f"    {col:<30} {val:.6f}{flag}")
 
         # Pass/fail checks
-        nan_count    = aligned.isna().sum().sum()
+        nan_count = aligned.isna().sum().sum()
         col_count_ok = aligned.shape[1] == len(model_columns)
 
         print()

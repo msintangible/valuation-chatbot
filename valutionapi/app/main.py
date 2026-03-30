@@ -6,14 +6,16 @@ import os
 
 from db.database import init_db
 from services.AI_model import load_valuation_model, load_model_columns
-from  app.v1.endpoints.predict import router as predict_router
-from  app.v1.endpoints.users import router as users_router
-from  app.v1.endpoints.predictions import router as predictions_router
+from app.v1.endpoints.predict import router as predict_router
+from app.v1.endpoints.users import router as users_router
+from app.v1.endpoints.predictions import router as predictions_router
 
-from  app.v1.endpoints.shap import router as shap_router
-from  app.v1.endpoints.portfolio import router as portfolio_router
-from  app.v1.endpoints.suggestions import router as suggestions_router
+from app.v1.endpoints.shap import router as shap_router
+from app.v1.endpoints.portfolio import router as portfolio_router
+from app.v1.endpoints.suggestions import router as suggestions_router
+
 # the router we will define
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,12 +26,13 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown (if needed)
 
+
 # Create FastAPI instance
 app = FastAPI(
     title="Stock Valuation API",
     description="XGBoost-powered stock valuation with SHAP explainability",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Include API router
@@ -46,7 +49,9 @@ app.include_router(suggestions_router)
 def read_root():
     return RedirectResponse(url="/docs")
 
+
 if __name__ == "__main__":
     import uvicorn
+
     reload_enabled = os.getenv("UVICORN_RELOAD", "0") == "1"
     uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=reload_enabled)

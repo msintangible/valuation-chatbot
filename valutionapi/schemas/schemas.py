@@ -3,19 +3,23 @@ from typing import Any, Dict, Optional, List
 
 # Request schemas
 
+
 class UserRequest(BaseModel):
     user_id: str
     username: Optional[str] = None
     channel_id: Optional[str] = None
+
 
 class PredictionRequest(BaseModel):
     user_id: str
     ticker: Optional[str] = None
     limit: Optional[int] = 10
 
+
 class PredictRequest(BaseModel):
     ticker: str
     user_id: str
+
 
 class PortfolioPredictRequest(BaseModel):
     user_id: str
@@ -58,7 +62,8 @@ class PortfolioCreateRequest(BaseModel):
 
 class PortfolioHoldingRequest(BaseModel):
     ticker: str
-    shares: float = 1.0   # number of shares held
+    shares: float = 1.0  # number of shares held
+
 
 class SuggestionItem(BaseModel):
     ticker: str
@@ -80,4 +85,3 @@ class PortfolioSuggestionsResponse(BaseModel):
     user_id: str
     top_sectors: List[str]
     suggestions: List[SuggestionItem]
-

@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from services.predict import run_prediction_shap
 from schemas.schemas import PredictRequest
 from db.database import get_db
+
 router = APIRouter(prefix="/explain", tags=["Explain"])
+
+
 @router.post("/")
 def predict_stock_shap(
     predict_request: PredictRequest,

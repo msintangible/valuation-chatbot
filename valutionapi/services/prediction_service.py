@@ -17,21 +17,20 @@ import yfinance as yf
 
 from models.models import Portfolio, PortfolioHolding, Prediction
 
-
 # Maps raw yfinance sector strings to the normalised training labels.
 # Must match SECTOR_MAP in stock_features.py exactly.
 SECTOR_MAP = {
-    "Technology":             "Technology",
-    "Financial Services":     "Financials",
-    "Healthcare":             "Healthcare",
-    "Consumer Cyclical":      "Discretionary",
-    "Consumer Defensive":     "Staples",
-    "Energy":                 "Energy",
-    "Industrials":            "Industrials",
-    "Utilities":              "Utilities",
-    "Real Estate":            "Utilities",
+    "Technology": "Technology",
+    "Financial Services": "Financials",
+    "Healthcare": "Healthcare",
+    "Consumer Cyclical": "Discretionary",
+    "Consumer Defensive": "Staples",
+    "Energy": "Energy",
+    "Industrials": "Industrials",
+    "Utilities": "Utilities",
+    "Real Estate": "Utilities",
     "Communication Services": "Technology",
-    "Basic Materials":        "Industrials",
+    "Basic Materials": "Industrials",
 }
 
 
@@ -44,7 +43,7 @@ def get_sector_for_tickers(tickers: list[str]) -> dict[str, str]:
     sector_map = {}
     for ticker in tickers:
         try:
-            info       = yf.Ticker(ticker).info
+            info = yf.Ticker(ticker).info
             raw_sector = info.get("sector") or "Unknown"
             # Normalise to training label — if not in map, keep raw value
             sector_map[ticker.upper()] = SECTOR_MAP.get(raw_sector, raw_sector)
@@ -55,14 +54,7 @@ def get_sector_for_tickers(tickers: list[str]) -> dict[str, str]:
 
 def fetch_user_predictions(db: Session, user_id: str) -> List[Prediction]:
     """Fetch all predictions for a user ordered from newest to oldest."""
-    return (
-        db.query(Prediction)
-        .filter(Prediction.user_id == user_id)
-        .order_by(Prediction.predicted_at.desc())
-        .all()
-    )
-
-
+    return db.query(Prediction).filter(Prediction.user_id == user_id).order_by(Prediction.predicted_at.desc()).all()
 
 
 def fetch_user_portfolio_holding_tickers(db: Session, user_id: str) -> List[str]:

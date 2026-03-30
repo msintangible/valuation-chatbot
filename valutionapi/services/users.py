@@ -4,6 +4,7 @@ from models.models import User, Prediction, RequestLog
 
 # ── USERS ─────────────────────────────────────────────────────────────────────
 
+
 def upsert_user(db: Session, user_id: str, username: str = None, channel_id: str = None) -> User:
     """
     Insert user if they don't exist, otherwise update last_seen.
@@ -13,9 +14,9 @@ def upsert_user(db: Session, user_id: str, username: str = None, channel_id: str
 
     if not user:
         user = User(
-            user_id    = user_id,
-            username   = username,
-            channel_id = channel_id,
+            user_id=user_id,
+            username=username,
+            channel_id=channel_id,
         )
         db.add(user)
     else:

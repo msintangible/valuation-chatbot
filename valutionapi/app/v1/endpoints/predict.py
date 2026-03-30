@@ -8,6 +8,7 @@ from schemas.schemas import PredictRequest
 
 router = APIRouter(prefix="/predict", tags=["Predictions"])
 
+
 @router.post("/")
 def predict_stock(predict_request: PredictRequest, request: Request, db: Session = Depends(get_db)):
     """
