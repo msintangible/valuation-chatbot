@@ -11,26 +11,26 @@ import yfinance as yf
 # Multiple ETFs per sector — merged to maximise ticker coverage
 # Each ETF tracks the same sector from a different angle / index
 SECTOR_ETFS: dict[str, list[str]] = {
-    "Technology":    ["XLK",  "VGT",  "QQQ",  "FTEC"],
-    "Financials":    ["XLF",  "VFH",  "KBWB", "IAI"],
-    "Healthcare":    ["XLV",  "VHT",  "IYH",  "FHLC"],
-    "Discretionary": ["XLY",  "VCR",  "IYC",  "FDIS"],
-    "Energy":        ["XLE",  "VDE",  "IYE",  "FENY"],
-    "Staples":       ["XLP",  "VDC",  "IYK",  "FSTA"],
-    "Industrials":   ["XLI",  "VIS",  "IYJ",  "FIDU"],
-    "Utilities":     ["XLU",  "VPU",  "IDU",  "FUTY"],
+    "Technology": ["XLK", "VGT", "QQQ", "FTEC"],
+    "Financials": ["XLF", "VFH", "KBWB", "IAI"],
+    "Healthcare": ["XLV", "VHT", "IYH", "FHLC"],
+    "Discretionary": ["XLY", "VCR", "IYC", "FDIS"],
+    "Energy": ["XLE", "VDE", "IYE", "FENY"],
+    "Staples": ["XLP", "VDC", "IYK", "FSTA"],
+    "Industrials": ["XLI", "VIS", "IYJ", "FIDU"],
+    "Utilities": ["XLU", "VPU", "IDU", "FUTY"],
 }
 
 # Static fallback if all ETF fetches fail
 SECTOR_FALLBACK: dict[str, list[str]] = {
-    "Technology":    ["AAPL", "MSFT", "NVDA", "ORCL", "ADBE", "CRM", "INTC", "CSCO", "AMD", "IBM"],
-    "Financials":    ["JPM",  "BAC",  "GS",   "MS",   "WFC",  "C",   "BLK",  "PYPL", "V",   "MA"],
-    "Healthcare":    ["PFE",  "JNJ",  "UNH",  "ABBV", "MRK",  "LLY", "AMGN", "TMO",  "GILD","BMY"],
-    "Discretionary": ["TSLA", "AMZN", "F",    "GM",   "HD",   "NKE", "SBUX", "MCD",  "BKNG","NCLH"],
-    "Energy":        ["XOM",  "CVX",  "COP",  "SLB",  "EOG",  "MPC", "VLO",  "PSX",  "HAL", "OXY"],
-    "Staples":       ["WMT",  "KO",   "PEP",  "COST", "PG",   "CL",  "MO",   "TGT",  "PM",  "MDLZ"],
-    "Industrials":   ["BA",   "CAT",  "GE",   "UPS",  "FDX",  "HON", "LMT",  "MMM",  "DE",  "RTX"],
-    "Utilities":     ["NEE",  "DUK",  "SO",   "D",    "AEP",  "EXC", "XEL",  "WEC",  "AWK", "DTE"],
+    "Technology": ["AAPL", "MSFT", "NVDA", "ORCL", "ADBE", "CRM", "INTC", "CSCO", "AMD", "IBM"],
+    "Financials": ["JPM", "BAC", "GS", "MS", "WFC", "C", "BLK", "PYPL", "V", "MA"],
+    "Healthcare": ["PFE", "JNJ", "UNH", "ABBV", "MRK", "LLY", "AMGN", "TMO", "GILD", "BMY"],
+    "Discretionary": ["TSLA", "AMZN", "F", "GM", "HD", "NKE", "SBUX", "MCD", "BKNG", "NCLH"],
+    "Energy": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "VLO", "PSX", "HAL", "OXY"],
+    "Staples": ["WMT", "KO", "PEP", "COST", "PG", "CL", "MO", "TGT", "PM", "MDLZ"],
+    "Industrials": ["BA", "CAT", "GE", "UPS", "FDX", "HON", "LMT", "MMM", "DE", "RTX"],
+    "Utilities": ["NEE", "DUK", "SO", "D", "AEP", "EXC", "XEL", "WEC", "AWK", "DTE"],
 }
 
 
@@ -40,7 +40,7 @@ def _get_etf_tickers(etf_symbol: str) -> list[str]:
     Returns a list of ticker strings or empty list on failure.
     """
     try:
-        etf      = yf.Ticker(etf_symbol)
+        etf = yf.Ticker(etf_symbol)
         holdings = etf.funds_data.top_holdings
 
         if holdings is None or holdings.empty:
@@ -78,8 +78,8 @@ def fetch_tickers_for_sector(
 
     print(f"  [sector_fetcher] Fetching {sector_label} from {etf_list}...")
 
-    seen    = set()
-    merged  = []
+    seen = set()
+    merged = []
 
     for etf_symbol in etf_list:
         tickers = _get_etf_tickers(etf_symbol)
@@ -105,10 +105,7 @@ def fetch_tickers_for_sectors(
     Fetch tickers for multiple sectors.
     Returns dict mapping sector_label -> list of tickers.
     """
-    return {
-        sector: fetch_tickers_for_sector(sector, max_results=max_per_sector)
-        for sector in sector_labels
-    }
+    return {sector: fetch_tickers_for_sector(sector, max_results=max_per_sector) for sector in sector_labels}
 
 
 if __name__ == "__main__":

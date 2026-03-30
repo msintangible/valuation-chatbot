@@ -40,7 +40,7 @@ def get_candidate_tickers(
     Fetch live tickers from ETF holdings for each top sector
     and remove any the user has already looked at.
     """
-    excluded  = {str(t).upper().strip() for t in excluded_tickers}
+    excluded = {str(t).upper().strip() for t in excluded_tickers}
     candidates = []
 
     for sector in top_sectors:
@@ -53,13 +53,12 @@ def get_candidate_tickers(
 
 
 def run_live_inference(
-        db: Session,
-        user_id: str,
-        tickers: List[str],
-        model,
-        model_columns: List[str],
+    db: Session,
+    user_id: str,
+    tickers: List[str],
+    model,
+    model_columns: List[str],
 ) -> List[Dict]:
-
     """
     Run each candidate ticker through the model live.
     Keeps only Undervalued (0) and Fair Value (1) results.
@@ -71,28 +70,30 @@ def run_live_inference(
 
     for ticker in tickers:
         try:
-            result      = run_prediction_shap( ticker=ticker,user_id=user_id,db=db, model=model, model_columns=model_columns)
-            label_text  = str(result.get("label", "Fair Value"))
-            label_id    = int(label_to_id.get(label_text, 1))
+            result = run_prediction_shap(ticker=ticker, user_id=user_id, db=db, model=model, model_columns=model_columns)
+            label_text = str(result.get("label", "Fair Value"))
+            label_id = int(label_to_id.get(label_text, 1))
 
             # only keep undervalued or fair value
             if label_id not in (0, 1):
                 continue
 
             current_price = float(result.get("current_price") or 0.0)
-            graham_value  = float(result.get("graham_value")  or 0.0)
-            upside_ratio  = (graham_value / current_price) if current_price > 0 else 0.0
+            graham_value = float(result.get("graham_value") or 0.0)
+            upside_ratio = (graham_value / current_price) if current_price > 0 else 0.0
 
-            scored.append({
-                "ticker":          str(result.get("ticker", ticker)).upper().strip(),
-                "predicted_label": label_id,
-                "label_text":      label_text,
-                "graham_value":    result.get("graham_value"),
-                "current_price":   result.get("current_price"),
-                "confidence":      result.get("confidence"),
-                "shap_summary":    result.get("shap_summary") or {},
-                "_upside_ratio":   upside_ratio,
-            })
+            scored.append(
+                {
+                    "ticker": str(result.get("ticker", ticker)).upper().strip(),
+                    "predicted_label": label_id,
+                    "label_text": label_text,
+                    "graham_value": result.get("graham_value"),
+                    "current_price": result.get("current_price"),
+                    "confidence": result.get("confidence"),
+                    "shap_summary": result.get("shap_summary") or {},
+                    "_upside_ratio": upside_ratio,
+                }
+            )
             print(f"  ✓ {ticker:8} -> {label_text}")
 
         except Exception as e:
@@ -134,11 +135,11 @@ def generate_suggestions(
     if not user_predictions:
         return [], []
 
-    ticker_frequency       = compute_ticker_frequency(user_predictions)
-    user_tickers           = list(ticker_frequency.keys())
+    ticker_frequency = compute_ticker_frequency(user_predictions)
+    user_tickers = list(ticker_frequency.keys())
     user_ticker_sector_map = map_tickers_to_sectors(user_tickers)
-    sector_frequency       = compute_sector_frequency(ticker_frequency, user_ticker_sector_map)
-    top_sectors            = select_top_sectors(sector_frequency, top_k=sector_limit)
+    sector_frequency = compute_sector_frequency(ticker_frequency, user_ticker_sector_map)
+    top_sectors = select_top_sectors(sector_frequency, top_k=sector_limit)
 
     print(f"\n  User tickers : {sorted(user_tickers)}")
     print(f"  Top sectors  : {top_sectors}")
@@ -148,17 +149,18 @@ def generate_suggestions(
     print(f"  Candidates   : {candidates}")
 
     # 3 — run model live on candidates
-    results     = run_live_inference(db, user_id, candidates, model, model_columns)
+    results = run_live_inference(db, user_id, candidates, model, model_columns)
     suggestions = results[:suggestion_limit]
 
     # 4 — fallback: try all sectors if top sector yielded nothing
     if not suggestions:
         print("  No results from top sector — trying all sectors as fallback")
         from services.stock_fecther import SECTOR_ETFS
-        all_sectors      = list(SECTOR_ETFS.keys())
+
+        all_sectors = list(SECTOR_ETFS.keys())
         fallback_tickers = get_candidate_tickers(all_sectors, user_tickers, max_per_sector=40)
         fallback_results = run_live_inference(db, user_id, fallback_tickers, model, model_columns)
-        suggestions      = fallback_results[:suggestion_limit]
+        suggestions = fallback_results[:suggestion_limit]
 
     return top_sectors, suggestions
 

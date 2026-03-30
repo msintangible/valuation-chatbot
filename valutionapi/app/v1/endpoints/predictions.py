@@ -7,6 +7,7 @@ from schemas.schemas import PredictionRequest
 
 router = APIRouter(prefix="/predictions", tags=["Predictions"])
 
+
 @router.get("/user/{user_id}")
 def get_user_predictions(user_id: str, limit: int = 10, db: Session = Depends(get_db)):
     """
@@ -23,12 +24,13 @@ def get_user_predictions(user_id: str, limit: int = 10, db: Session = Depends(ge
                 "graham_value": p.graham_value,
                 "current_price": p.current_price,
                 "confidence": p.confidence,
-                "predicted_at": p.predicted_at
+                "predicted_at": p.predicted_at,
             }
             for p in predictions
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/ticker/{ticker}")
 def get_ticker_predictions(ticker: str, db: Session = Depends(get_db)):
@@ -46,12 +48,13 @@ def get_ticker_predictions(ticker: str, db: Session = Depends(get_db)):
                 "graham_value": p.graham_value,
                 "current_price": p.current_price,
                 "confidence": p.confidence,
-                "predicted_at": p.predicted_at
+                "predicted_at": p.predicted_at,
             }
             for p in predictions
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/last/{user_id}/{ticker}")
 def get_last_user_ticker_prediction(user_id: str, ticker: str, db: Session = Depends(get_db)):
@@ -69,7 +72,7 @@ def get_last_user_ticker_prediction(user_id: str, ticker: str, db: Session = Dep
             "graham_value": prediction.graham_value,
             "current_price": prediction.current_price,
             "confidence": prediction.confidence,
-            "predicted_at": prediction.predicted_at
+            "predicted_at": prediction.predicted_at,
         }
     except HTTPException:
         raise

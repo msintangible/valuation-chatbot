@@ -7,6 +7,7 @@ from schemas.schemas import UserRequest
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+
 @router.post("/")
 def create_or_update_user(user_request: UserRequest, db: Session = Depends(get_db)):
     """
@@ -17,6 +18,7 @@ def create_or_update_user(user_request: UserRequest, db: Session = Depends(get_d
         return {"message": "User upserted successfully", "user_id": user.user_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{user_id}")
 def get_user_info(user_id: str, db: Session = Depends(get_db)):
@@ -31,5 +33,5 @@ def get_user_info(user_id: str, db: Session = Depends(get_db)):
         "username": user.username,
         "channel_id": user.channel_id,
         "created_at": user.created_at,
-        "last_seen": user.last_seen
+        "last_seen": user.last_seen,
     }

@@ -24,16 +24,17 @@ from services.prediction_service import (
 from services.recommendation_service import (
     select_top_sectors,
     get_candidate_tickers,
-    run_live_inference, generate_suggestions,
+    run_live_inference,
+    generate_suggestions,
 )
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TEST_USER_ID = "1"   # replace with a real user_id from your DB
+TEST_USER_ID = "1"  # replace with a real user_id from your DB
 TOP_N = 5
 
 # ── Load model ────────────────────────────────────────────────────────────────
 print("\nLoading model...")
-model         = load_valuation_model()
+model = load_valuation_model()
 model_columns = load_model_columns()
 
 db = SessionLocal()
@@ -52,6 +53,6 @@ try:
     print(f"Suggestions: {len(suggestions)}")
     for row in suggestions:
         print(f"  {row.get('ticker')} -> {row.get('label_text')}")
-    
+
 finally:
     db.close()

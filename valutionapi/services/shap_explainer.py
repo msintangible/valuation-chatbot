@@ -10,7 +10,6 @@ from typing import Dict, List, Tuple
 import numpy as np
 import shap
 
-
 LABEL_EXPLANATION = {
     "Undervalued": "The model sees signs the stock may be priced below its fundamentals.",
     "Fair Value": "The model sees the stock as roughly in line with its fundamentals.",
@@ -56,7 +55,7 @@ def generate_shap_explanation(model, input_df, prediction_label: str) -> Dict:
         if isinstance(shap_values, list):
             # Old SHAP format
             shap_vals = shap_values[class_idx][0]
-        elif hasattr(shap_values, 'shape') and len(shap_values.shape) == 3:
+        elif hasattr(shap_values, "shape") and len(shap_values.shape) == 3:
             # New SHAP format — shape is (n_samples, n_features, n_classes)
             shap_vals = shap_values[0, :, class_idx]
         else:
@@ -126,7 +125,9 @@ def generate_shap_explanation(model, input_df, prediction_label: str) -> Dict:
         return {"explanation_error": str(e)}
 
 
-def _generate_summary(prediction_label: str, top_positive: List[Tuple[str, float]], top_negative: List[Tuple[str, float]]) -> str:
+def _generate_summary(
+    prediction_label: str, top_positive: List[Tuple[str, float]], top_negative: List[Tuple[str, float]]
+) -> str:
     """Generate natural language summary of the explanation."""
     if not top_positive and not top_negative:
         return f"{prediction_label} - no significant feature contributions identified."
@@ -141,11 +142,7 @@ def _generate_summary(prediction_label: str, top_positive: List[Tuple[str, float
         neg_str = ", ".join([f"{name} ({val:.2f})" for name, val in top_negative[:3]])
         summary_parts.append(f"offset by {neg_str}")
 
-    summary = (
-        f"{prediction_label}: {LABEL_EXPLANATION.get(prediction_label, '')} "
-        + " and ".join(summary_parts)
-        + "."
-    )
+    summary = f"{prediction_label}: {LABEL_EXPLANATION.get(prediction_label, '')} " + " and ".join(summary_parts) + "."
 
     return summary
 
@@ -177,12 +174,8 @@ def _fallback_explanation(model, input_df, prediction_label: str) -> Dict:
             "prediction_meaning": LABEL_EXPLANATION.get(prediction_label, ""),
             "feature_impacts": [],
             "beginner_guide": {
-                "how_to_read_shap": (
-                    "Fallback mode: using feature importance only, not true SHAP direction."
-                ),
-                "is_high_shap_good_or_bad": (
-                    "This fallback does not provide positive/negative SHAP direction."
-                ),
+                "how_to_read_shap": ("Fallback mode: using feature importance only, not true SHAP direction."),
+                "is_high_shap_good_or_bad": ("This fallback does not provide positive/negative SHAP direction."),
             },
         }
     except Exception:
