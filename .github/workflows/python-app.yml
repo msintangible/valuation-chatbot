@@ -44,7 +44,7 @@ jobs:
     - name: Check code formatting with Black
       run: |
         black --check --diff valutionapi
-      continue-on-error: false
+      
     
     - name: Lint with flake8
       run: |
