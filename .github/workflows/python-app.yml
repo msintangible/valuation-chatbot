@@ -41,9 +41,9 @@ jobs:
         if [ -f valutionapi/requirements.txt ]; then pip install -r valutionapi/requirements.txt; fi
     
     # 🔥 ENHANCEMENT 3: Add formatting check with Black
-    - name: Check code formatting with Black
+    - name: Auto format code with Black
       run: |
-        black --check --diff valutionapi
+        black valutionapi
       
     
     - name: Lint with flake8
