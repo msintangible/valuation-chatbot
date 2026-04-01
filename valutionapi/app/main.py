@@ -13,8 +13,10 @@ from app.v1.endpoints.predictions import router as predictions_router
 from app.v1.endpoints.shap import router as shap_router
 from app.v1.endpoints.portfolio import router as portfolio_router
 from app.v1.endpoints.suggestions import router as suggestions_router
+from app.v1.endpoints.chatbot_endpoint import router as chatbot_router
 
 # the router we will define
+
 
 
 @asynccontextmanager
@@ -42,6 +44,7 @@ app.include_router(predictions_router)
 app.include_router(shap_router)
 app.include_router(portfolio_router)
 app.include_router(suggestions_router)
+app.include_router(chatbot_router)
 
 
 # Root redirect to Swagger docs
