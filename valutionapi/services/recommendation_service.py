@@ -30,23 +30,32 @@ def select_top_sectors(sector_frequency: Dict[str, int], top_k: int = 1) -> List
     ranked = sorted(sector_frequency.items(), key=lambda x: x[1], reverse=True)
     return [sector for sector, _ in ranked[:top_k]]
 
-
 def get_candidate_tickers(
     top_sectors: List[str],
-    excluded_tickers: Iterable[str],
+    portfolio_tickers: Iterable[str],
     max_per_sector: int = 40,
 ) -> List[str]:
     """
     Fetch live tickers from ETF holdings for each top sector
-    and remove any the user has already looked at.
+    and exclude tickers already held in the user's portfolio.
     """
-    excluded = {str(t).upper().strip() for t in excluded_tickers}
+    held = {str(t).upper().strip() for t in portfolio_tickers}
     candidates = []
 
     for sector in top_sectors:
         tickers = fetch_tickers_for_sector(sector, max_results=max_per_sector)
+
         for ticker in tickers:
-            if ticker.upper() not in excluded:
+            ticker = ticker.upper()
+
+            if ticker not in held:
+                candidates.append(ticker)
+    # If no new candidates found, allow re-analyzing existing tickers with fresh data
+    if not candidates:
+        print("  ⚠️ No new tickers found, allowing overlap with user history for fresh analysis")
+        for sector in top_sectors:
+            tickers = fetch_tickers_for_sector(sector, max_results=max_per_sector)
+            for ticker in tickers[:max_per_sector // 2]:  # Limit to half to avoid too many
                 candidates.append(ticker.upper())
 
     return candidates

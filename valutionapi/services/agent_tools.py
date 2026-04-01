@@ -233,30 +233,44 @@ class ToolExecutor:
             
             url = f"{self.base_url}{endpoint}"
             
+            print(f"🔗 DEBUG: Calling tool '{tool_name}'")
+            print(f"   URL: {url}")
+            print(f"   Method: {tool['method']}")
+            print(f"   Params: {params}")
+            
             # Execute request
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=700.0) as client:
                 if tool["method"] == "POST":
                     response = await client.post(url, json=params)
                 elif tool["method"] == "GET":
                     # Remove path params from query params
                     query_params = {k: v for k, v in params.items() 
                                    if k not in ["user_id", "name", "portfolio_name"]}
+                    print(f"   Query params: {query_params}")
                     response = await client.get(url, params=query_params)
                 else:
                     return {"error": f"Unsupported method: {tool['method']}"}
                 
+                print(f"   Response status: {response.status_code}")
                 response.raise_for_status()
-                return response.json()
+                result = response.json()
+                print(f"   Response data: {result}")
+                return result
                 
         except httpx.HTTPStatusError as e:
+            print(f"❌ HTTP Error: {e.response.status_code}")
+            print(f"   Response text: {e.response.text}")
             return {
                 "error": f"HTTP {e.response.status_code}",
                 "detail": e.response.text,
                 "tool": tool_name
             }
         except Exception as e:
+            print(f"❌ Exception: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {
-                "error": str(e),
+                "error": str(e) or f"{type(e).__name__}",
                 "tool": tool_name
             }
     
@@ -290,3 +304,14 @@ class ToolExecutor:
             "user_id": user_id,
             "top_n": top_n
         })
+    
+    async def call_portfolio_suggestions(self, user_id: str, portfolio_name: str, 
+                                        top_n: int = 10, sector_count: int = 3) -> Dict[str, Any]:
+        """Convenience wrapper for portfolio-based suggestions."""
+        return await self.call_tool("portfolio_suggestions", {
+            "user_id": user_id,
+            "portfolio_name": portfolio_name,
+            "top_n": top_n,
+            "sector_count": sector_count
+        })
+

@@ -96,14 +96,20 @@ class FinancialIntelligenceAgent:
         
         # Step 3: Get personalized recommendations from backend service
         should_get_recommendations = (
-                intent["type"] == "suggestions"
+                intent["type"] in ["suggestions", "portfolio_suggestions"]
                 or (intent["type"] == "general" and not tickers)
         )
 
         if should_get_recommendations:
             recommendations = await self._get_recommendations(user_id, intent, tool_results)
         else:
-            recommendations = {"top_sector": [], "suggestions": []}
+            recommendations = {"top_sectors": [], "suggestions": []}
+        
+        print(f"📊 DEBUG: Final recommendations before response generation:")
+        print(f"   Type: {type(recommendations)}")
+        print(f"   Keys: {recommendations.keys() if isinstance(recommendations, dict) else 'N/A'}")
+        print(f"   top_sectors: {recommendations.get('top_sectors', [])}")
+        print(f"   suggestions: {len(recommendations.get('suggestions', []))} items")
         
         # Step 4: Generate response using tool data + recommendations
         response = await self._generate_response(
@@ -154,13 +160,20 @@ class FinancialIntelligenceAgent:
         if tickers:
             intent["entities"]["tickers"] = tickers
 
-        # Detect portfolio keywords
-        portfolio_keywords = ["portfolio", "holdings", "my stocks", "all my"]
-        if any(kw in query_lower for kw in portfolio_keywords):
-            intent["type"] = "portfolio_risk"
-            intent["confidence"] = 0.9
-            intent["needs_risk_analysis"] = True
-            return intent
+        # Detect suggestion keywords FIRST (higher priority than portfolio risk)
+        suggestion_keywords = ["suggest", "recommend", "what should i", "ideas", "options", "optimize"]
+        portfolio_keywords = ["portfolio", "holdings"]
+        
+        if any(kw in query_lower for kw in suggestion_keywords):
+            # Check if user wants portfolio-specific suggestions
+            if any(kw in query_lower for kw in portfolio_keywords):
+                intent["type"] = "portfolio_suggestions"
+                intent["confidence"] = 0.95
+                return intent
+            else:
+                intent["type"] = "suggestions"
+                intent["confidence"] = 0.85
+                return intent
         
         # Detect explanation keywords
         explanation_keywords = ["why", "explain", "how come", "reason", "because", "shap"]
@@ -171,11 +184,12 @@ class FinancialIntelligenceAgent:
                 intent["confidence"] = 0.95
                 return intent
         
-        # Detect suggestion keywords
-        suggestion_keywords = ["suggest", "recommend", "what should i", "ideas", "options"]
-        if any(kw in query_lower for kw in suggestion_keywords):
-            intent["type"] = "suggestions"
-            intent["confidence"] = 0.85
+        # Detect portfolio risk keywords (AFTER suggestion check)
+        portfolio_risk_keywords = ["portfolio risk", "analyze portfolio", "portfolio analysis", "how is my portfolio"]
+        if any(kw in query_lower for kw in portfolio_risk_keywords):
+            intent["type"] = "portfolio_risk"
+            intent["confidence"] = 0.9
+            intent["needs_risk_analysis"] = True
             return intent
         
         # Detect comparison keywords
@@ -350,13 +364,29 @@ Tickers:"""
                 results.append({"tool": "portfolio_risk", "error": str(e)})
         
         # Rule 4: Suggestions (delegates to recommendation service)
-        elif intent_type == "suggestions":
-            try:
-                suggestions = await self.tool_executor.call_user_suggestions(user_id, top_n=5)
-                results.append({"tool": "user_suggestions", "data": suggestions})
-            except Exception as e:
-                print(f"Error calling suggestions: {e}")
-                results.append({"tool": "user_suggestions", "error": str(e)})
+        # NOTE: Suggestions are handled in _get_recommendations() to avoid duplicate calls
+        # elif intent_type == "suggestions":
+        #     try:
+        #         suggestions = await self.tool_executor.call_user_suggestions(user_id, top_n=5)
+        #         results.append({"tool": "user_suggestions", "data": suggestions})
+        #     except Exception as e:
+        #         print(f"Error calling suggestions: {e}")
+        #         results.append({"tool": "user_suggestions", "error": str(e)})
+        
+        # Rule 4b: Portfolio-specific suggestions
+        # elif intent_type == "portfolio_suggestions":
+        #     try:
+        #         # Get user's portfolios first
+        #         portfolios = await self.tool_executor.call_tool("list_portfolios", {"user_id": user_id})
+        #         if isinstance(portfolios, list) and len(portfolios) > 0:
+        #             portfolio_name = portfolios[0].get("name", "default")
+        #             suggestions = await self.tool_executor.call_portfolio_suggestions(
+        #                 user_id, portfolio_name, top_n=5
+        #             )
+        #             results.append({"tool": "portfolio_suggestions", "data": suggestions})
+        #     except Exception as e:
+        #         print(f"Error calling portfolio suggestions: {e}")
+        #         results.append({"tool": "portfolio_suggestions", "error": str(e)})
         
         # Rule 5: Comparison
         elif intent_type == "comparison" and len(tickers) >= 2:
@@ -387,17 +417,96 @@ Tickers:"""
         # Only call suggestions endpoint when user asks for suggestions
         intent_type = intent.get("type", "general")
         
+        # Handle regular user suggestions
         if intent_type == "suggestions":
             try:
+                # Check if we already have suggestions from tool_results (to avoid duplicate call)
+                existing_suggestion = next(
+                    (r for r in tool_results if r.get("tool") == "user_suggestions"),
+                    None
+                )
+                
+                if existing_suggestion and "data" in existing_suggestion:
+                    print("✓ Using cached suggestion results from tool execution")
+                    return existing_suggestion["data"]
+                
+                # Otherwise, call the suggestions endpoint
+                print("✓ Calling user suggestions endpoint")
                 recommendations = await self.tool_executor.call_user_suggestions(user_id, top_n=5)
+                
+                print(f"📊 DEBUG: User recommendations response:")
+                print(f"   Type: {type(recommendations)}")
+                print(f"   Keys: {recommendations.keys() if isinstance(recommendations, dict) else 'N/A'}")
+                print(f"   Data: {recommendations}")
                 
                 if "error" in recommendations:
                     return {"top_sectors": [], "suggestions": []}
                 
-                return recommendations
+                # Normalize response structure (user endpoint uses top_sector, not top_sectors)
+                normalized = {
+                    "top_sectors": [recommendations.get("top_sector")] if recommendations.get("top_sector") else [],
+                    "suggestions": recommendations.get("suggestions", [])
+                }
+                
+                print(f"📊 DEBUG: Normalized recommendations:")
+                print(f"   top_sectors: {normalized['top_sectors']}")
+                print(f"   suggestions count: {len(normalized['suggestions'])}")
+                
+                return normalized
                 
             except Exception as e:
                 print(f"Error getting recommendations: {e}")
+                return {"top_sectors": [], "suggestions": []}
+        
+        # Handle portfolio-specific suggestions
+        elif intent_type == "portfolio_suggestions":
+            try:
+                # Check if we already have portfolio suggestions from tool_results
+                existing_suggestion = next(
+                    (r for r in tool_results if r.get("tool") == "portfolio_suggestions"),
+                    None
+                )
+                
+                if existing_suggestion and "data" in existing_suggestion:
+                    print("✓ Using cached portfolio suggestion results from tool execution")
+                    return existing_suggestion["data"]
+                
+                # Otherwise, fetch user's portfolios and call portfolio suggestions
+                print("✓ Calling portfolio suggestions endpoint")
+                portfolios = await self.tool_executor.call_tool("list_portfolios", {"user_id": user_id})
+                
+                if isinstance(portfolios, list) and len(portfolios) > 0:
+                    portfolio_name = portfolios[0].get("name", "default")
+                    recommendations = await self.tool_executor.call_portfolio_suggestions(
+                        user_id, portfolio_name, top_n=5
+                    )
+                    
+                    print(f"📊 DEBUG: Portfolio recommendations response:")
+                    print(f"   Type: {type(recommendations)}")
+                    print(f"   Keys: {recommendations.keys() if isinstance(recommendations, dict) else 'N/A'}")
+                    print(f"   Data: {recommendations}")
+                    
+                    if "error" in recommendations:
+                        return {"top_sectors": [], "suggestions": []}
+                    
+                    # Normalize response structure (portfolio endpoint uses top_sectors, not top_sector)
+                    normalized = {
+                        "top_sectors": recommendations.get("top_sectors", []),
+                        "suggestions": recommendations.get("suggestions", [])
+                    }
+                    
+                    print(f"📊 DEBUG: Normalized recommendations:")
+                    print(f"   top_sectors: {normalized['top_sectors']}")
+                    print(f"   suggestions count: {len(normalized['suggestions'])}")
+                    
+                    return normalized
+                else:
+                    # No portfolios found, fallback to regular suggestions
+                    print("  ⚠️ No portfolios found, falling back to user suggestions")
+                    return await self.tool_executor.call_user_suggestions(user_id, top_n=5)
+                    
+            except Exception as e:
+                print(f"Error getting portfolio recommendations: {e}")
                 return {"top_sectors": [], "suggestions": []}
         
         # For other intents, don't call suggestions
@@ -476,12 +585,20 @@ Tickers:"""
     ) -> str:
         """Build prompt for LLM - pure formatting, no custom intelligence."""
 
-        top_sector = recommendations.get("top_sector")
+        # Handle both top_sector (singular) and top_sectors (plural) for backwards compatibility
+        top_sectors = recommendations.get("top_sectors", [])
         suggestions = recommendations.get("suggestions", [])
-
+        
+        print(f"📊 DEBUG: Building LLM prompt with:")
+        print(f"   top_sectors: {top_sectors}")
+        print(f"   suggestions: {len(suggestions)} items")
+        print(f"   First 3 suggestions: {suggestions[:3]}")
         
         # Extract suggestion tickers for display
         suggested_tickers = [s.get("ticker", "") for s in suggestions[:3] if s.get("ticker")]
+        
+        # Format sectors as comma-separated string
+        sectors_str = ", ".join(top_sectors) if top_sectors else "None"
         
         prompt = f"""You are a financial intelligence AI assistant that formats data from backend services.
 
@@ -491,8 +608,9 @@ TOOL RESULTS (from backend endpoints):
 {context}
 
 PERSONALIZED RECOMMENDATIONS (from recommendation service):
-- Top sectors of interest: {top_sector}
+- Top sectors of interest: {sectors_str}
 - Suggested tickers: {suggested_tickers}
+- Full suggestion details: {json.dumps(suggestions[:5], indent=2) if suggestions else "No suggestions available"}
 
 CRITICAL RULES:
 1. NEVER make up financial data - use tool results ONLY
@@ -518,8 +636,9 @@ RESPONSE FORMAT:
 - [Risk and portfolio insights from tools]
 
 💡 **Personalized Suggestions** (from recommendation service)
-- Sectors you're interested in: {top_sector}
+- Sectors you're interested in: {sectors_str}
 - Recommended tickers to explore: {suggested_tickers}
+{f"- Details: Based on your {sectors_str} interest, consider {', '.join(suggested_tickers[:3])}" if suggested_tickers else ""}
 
 Keep it clear, actionable, and data-driven. All data from endpoints only."""
         
