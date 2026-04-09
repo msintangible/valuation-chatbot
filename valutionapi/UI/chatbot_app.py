@@ -10,7 +10,7 @@ from typing import Dict, Any
 
 # Configuration
 API_BASE_URL = "http://localhost:8001"
-USER_ID = "test_user_123"
+USER_ID = "3"
 
 # Page configuration
 st.set_page_config(
@@ -51,17 +51,23 @@ if prompt := st.chat_input("Ask about stocks, portfolios, or get recommendations
         with st.spinner("Thinking..."):
             try:
                 # Send request to backend API
+                payload = {
+                    "user_id": USER_ID,
+                    "query": prompt
+                }
+
+                st.write("📤 Sending:", payload)
+
                 response = requests.post(
                     f"{API_BASE_URL}/chat/",
-                    json={
-                        "user_id": USER_ID,
-                        "query": prompt
-                    },
+                    json=payload,
                     timeout=60
                 )
-                
-                response.raise_for_status()
+
+                st.write("📥 Raw response:", response.text)
+
                 data = response.json()
+                st.write("📥 Parsed:", data)
                 
                 # Extract response fields
                 assistant_message = data.get("response", "No response received.")
