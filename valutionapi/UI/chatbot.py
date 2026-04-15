@@ -288,264 +288,226 @@ def render_response(data: Dict[str, Any], tickers: list[str] = None, show_quick_
             for tool in tools_used:
                 st.caption(f"✓ {tool}")
 
-# Page configuration
-st.set_page_config(
-    page_title="Financial Intelligence Chatbot",
-    page_icon="💰",
-    layout="centered"
-)
+def render():
+    """Render the chatbot page UI."""
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "debug_mode" not in st.session_state:
+        st.session_state.debug_mode = False
 
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "debug_mode" not in st.session_state:
-    st.session_state.debug_mode = False
+    st.title("💰 Financial Intelligence Chatbot")
+    st.markdown("Ask about stock valuations, portfolio analysis, and get personalized recommendations.")
+    st.divider()
 
-# Header
-st.title("💰 Financial Intelligence Chatbot")
-st.markdown("Ask about stock valuations, portfolio analysis, and get personalized recommendations.")
-st.divider()
-
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        if message["role"] == "assistant":
-            # Use structured renderer for full data (no quick actions in history)
-            if message.get("full_data"):
-                render_response(message["full_data"], message.get("tickers", []), show_quick_actions=False)
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            if message["role"] == "assistant":
+                if message.get("full_data"):
+                    render_response(message["full_data"], message.get("tickers", []), show_quick_actions=False)
+                else:
+                    st.markdown(message["content"])
             else:
                 st.markdown(message["content"])
-        else:
-            # Simple text for user messages
-            st.markdown(message["content"])
 
-def process_message(prompt: str, display_output: bool = True):
-    """Process a user query and get API response. Can be called from chat input or quick actions."""
-    # Display user message if needed (skip if already displayed)
-    if display_output:
-        with st.chat_message("user"):
-            st.markdown(prompt)
-    
-    # Call API and get response
-    with st.chat_message("assistant"):
-        # Multi-stage loading status
-        status_container = st.empty()
-        
-        try:
-            # STAGE 1: Analyzing query
-            with status_container.container():
-                st.info("🔍 Analyzing query...")
-            
-            # Extract and display detected tickers (UX confirmation)
-            tickers = extract_tickers(prompt)
-            display_ticker_chips(tickers)
-            
-            # STAGE 2: Fetching market data
-            with status_container.container():
-                st.info("📡 Fetching market data...")
-            
-            # Send request to backend API
-            payload = {
-                "user_id": USER_ID,
-                "query": prompt
-            }
+    def process_message(prompt: str, display_output: bool = True):
+        """Process a user query and get API response. Can be called from chat input or quick actions."""
+        if display_output:
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-            if st.session_state.debug_mode:
-                st.write("📤 Sending:", payload)
+        with st.chat_message("assistant"):
+            status_container = st.empty()
 
-            response = requests.post(
-                f"{API_BASE_URL}/chat/",
-                json=payload,
-                timeout=60
-            )
+            try:
+                with status_container.container():
+                    st.info("🔍 Analyzing query...")
 
-            if st.session_state.debug_mode:
-                st.write("📥 Raw response:", response.text)
+                tickers = extract_tickers(prompt)
+                display_ticker_chips(tickers)
 
-            # STAGE 3: Generating insights
-            with status_container.container():
-                st.info("🧠 Generating insights...")
-            
-            data = response.json()
-            
-            if st.session_state.debug_mode:
-                st.write("📥 Parsed:", data)
-            
-            # Clear status and render response
-            status_container.empty()
-            render_response(data, tickers)
-            
-            # Add to chat history
-            assistant_message = data.get("response", "No response received.")
-            next_action = data.get("next_best_action", "")
-            
-            # Add to chat history
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": assistant_message,
-                "next_action": next_action,
-                "tickers": tickers,  # Store detected tickers
-                "full_data": data  # Store full response for structured rendering
-            })
-            
-        except requests.exceptions.Timeout as e:
-            handle_error(
-                "timeout",
-                "Request timed out. The server took too long to respond.",
-                e
-            )
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Request timed out. Please try again.",
-                "next_action": None
-            })
-            
-        except requests.exceptions.ConnectionError as e:
-            handle_error(
-                "connection",
-                "Could not connect to the API server.",
-                e
-            )
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Connection failed. Please check if server is running.",
-                "next_action": None
-            })
-            
-        except requests.exceptions.HTTPError as e:
-            status_code = e.response.status_code
-            if status_code == 400:
-                error_type = "validation"
-                friendly_msg = "Invalid request. Please check your input."
-            else:
-                error_type = "api"
-                friendly_msg = f"API error (Code {status_code}). Please try again."
-            
-            handle_error(error_type, friendly_msg, e)
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": friendly_msg,
-                "next_action": None
-            })
-            
-        except Exception as e:
-            handle_error(
-                "unknown",
-                "Something unexpected happened. Please try again.",
-                e
-            )
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "An unexpected error occurred.",
-                "next_action": None
-            })
+                with status_container.container():
+                    st.info("📡 Fetching market data...")
 
+                payload = {
+                    "user_id": USER_ID,
+                    "query": prompt
+                }
 
-# Process pending messages (from quick actions) or new chat input
-prompt = None
+                if st.session_state.debug_mode:
+                    st.write("📤 Sending:", payload)
 
-# Check for unprocessed user messages (from quick action buttons)
-unprocessed = None
-for i, msg in enumerate(st.session_state.messages):
-    if msg["role"] == "user" and i == len(st.session_state.messages) - 1:
-        # Last message is user message - check if it has a response
-        if i + 1 >= len(st.session_state.messages) or st.session_state.messages[i + 1]["role"] != "assistant":
-            unprocessed = msg["content"]
-            break
+                response = requests.post(
+                    f"{API_BASE_URL}/chat/",
+                    json=payload,
+                    timeout=60
+                )
 
-# Get new chat input
-chat_input = st.chat_input("Ask about stocks, portfolios, or get recommendations...")
+                if st.session_state.debug_mode:
+                    st.write("📥 Raw response:", response.text)
 
-# Determine which prompt to process
-if unprocessed:
-    # Process pending message from quick actions (don't display again, it's already in history)
-    prompt = unprocessed
-    display_output = False
-elif chat_input:
-    # New user input from chat box
-    st.session_state.messages.append({"role": "user", "content": chat_input})
-    prompt = chat_input
-    display_output = True
+                with status_container.container():
+                    st.info("🧠 Generating insights...")
 
-# Process the prompt if we have one
-if prompt:
-    process_message(prompt, display_output=display_output)
+                data = response.json()
 
-# Display quick actions only after the latest assistant message
-if st.session_state.messages:
-    last_message = st.session_state.messages[-1]
-    if last_message["role"] == "assistant" and last_message.get("tickers"):
-        st.markdown("---")
-        st.markdown("**💡 Quick Actions:**")
-        
-        col1, col2, col3 = st.columns(3)
-        tickers = last_message.get("tickers", [])
-        
-        with col1:
-            if st.button("📊 Analyze Portfolio", key="quick_analyze"):
+                if st.session_state.debug_mode:
+                    st.write("📥 Parsed:", data)
+
+                status_container.empty()
+                render_response(data, tickers)
+
+                assistant_message = data.get("response", "No response received.")
+                next_action = data.get("next_best_action", "")
                 st.session_state.messages.append({
-                    "role": "user",
-                    "content": "Analyze my portfolio risk"
+                    "role": "assistant",
+                    "content": assistant_message,
+                    "next_action": next_action,
+                    "tickers": tickers,
+                    "full_data": data
                 })
-                st.rerun()
-        
-        with col2:
-            if tickers and len(tickers) >= 1:
-                action_text = f"📈 {tickers[0]} Details" if len(tickers) == 1 else "📈 Compare More"
-                if st.button(action_text, key="quick_details"):
-                    if len(tickers) == 1:
-                        st.session_state.messages.append({
-                            "role": "user",
-                            "content": f"Why is {tickers[0]} valued this way?"
-                        })
-                    else:
-                        st.session_state.messages.append({
-                            "role": "user",
-                            "content": f"Explain factors for {', '.join(tickers[:2])}"
-                        })
+
+            except requests.exceptions.Timeout as e:
+                handle_error(
+                    "timeout",
+                    "Request timed out. The server took too long to respond.",
+                    e
+                )
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "Request timed out. Please try again.",
+                    "next_action": None
+                })
+
+            except requests.exceptions.ConnectionError as e:
+                handle_error(
+                    "connection",
+                    "Could not connect to the API server.",
+                    e
+                )
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "Connection failed. Please check if server is running.",
+                    "next_action": None
+                })
+
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code
+                if status_code == 400:
+                    error_type = "validation"
+                    friendly_msg = "Invalid request. Please check your input."
+                else:
+                    error_type = "api"
+                    friendly_msg = f"API error (Code {status_code}). Please try again."
+
+                handle_error(error_type, friendly_msg, e)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": friendly_msg,
+                    "next_action": None
+                })
+
+            except Exception as e:
+                handle_error(
+                    "unknown",
+                    "Something unexpected happened. Please try again.",
+                    e
+                )
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "An unexpected error occurred.",
+                    "next_action": None
+                })
+
+    prompt = None
+    unprocessed = None
+
+    for i, msg in enumerate(st.session_state.messages):
+        if msg["role"] == "user" and i == len(st.session_state.messages) - 1:
+            if i + 1 >= len(st.session_state.messages) or st.session_state.messages[i + 1]["role"] != "assistant":
+                unprocessed = msg["content"]
+                break
+
+    chat_input = st.chat_input("Ask about stocks, portfolios, or get recommendations...")
+
+    if unprocessed:
+        prompt = unprocessed
+        display_output = False
+    elif chat_input:
+        st.session_state.messages.append({"role": "user", "content": chat_input})
+        prompt = chat_input
+        display_output = True
+
+    if prompt:
+        process_message(prompt, display_output=display_output)
+
+    if st.session_state.messages:
+        last_message = st.session_state.messages[-1]
+        if last_message["role"] == "assistant" and last_message.get("tickers"):
+            st.markdown("---")
+            st.markdown("**💡 Quick Actions:**")
+
+            col1, col2, col3 = st.columns(3)
+            tickers = last_message.get("tickers", [])
+
+            with col1:
+                if st.button("📊 Analyze Portfolio", key="quick_analyze"):
+                    st.session_state.messages.append({
+                        "role": "user",
+                        "content": "Analyze my portfolio risk"
+                    })
                     st.rerun()
-        
-        with col3:
-            if st.button("💰 Get Suggestions", key="quick_suggest"):
-                st.session_state.messages.append({
-                    "role": "user",
-                    "content": "What stocks would you recommend?"
-                })
-                st.rerun()
 
-# Sidebar with controls
-with st.sidebar:
-    # Debug toggle (always at top)
-    st.session_state.debug_mode = st.toggle("🐞 Debug Mode", value=st.session_state.debug_mode)
-    
-    st.divider()
-    
-    st.header("ℹ️ About")
-    st.markdown("""
-    This chatbot uses AI to help you with:
-    - **Stock Valuations** - Check if stocks are under/over valued
-    - **Explanations** - Understand why a stock is valued a certain way
-    - **Portfolio Analysis** - Analyze your portfolio risk
-    - **Recommendations** - Get personalized stock suggestions
-    """)
-    
-    st.divider()
-    
-    st.header("📝 Examples")
-    st.markdown("""
-    Try asking:
-    - "What's the valuation for AAPL?"
-    - "Why is TSLA overvalued?"
-    - "Suggest some stocks for me"
-    - "Analyze my portfolio risk"
-    """)
-    
-    st.divider()
-    
-    # Clear chat button
-    if st.button("🗑️ Clear Chat History"):
-        st.session_state.messages = []
-        st.rerun()
-    
-    st.caption(f"Connected to: {API_BASE_URL}")
-    st.caption(f"User ID: {USER_ID}")
+            with col2:
+                if tickers and len(tickers) >= 1:
+                    action_text = f"📈 {tickers[0]} Details" if len(tickers) == 1 else "📈 Compare More"
+                    if st.button(action_text, key="quick_details"):
+                        if len(tickers) == 1:
+                            st.session_state.messages.append({
+                                "role": "user",
+                                "content": f"Why is {tickers[0]} valued this way?"
+                            })
+                        else:
+                            st.session_state.messages.append({
+                                "role": "user",
+                                "content": f"Explain factors for {', '.join(tickers[:2])}"
+                            })
+                        st.rerun()
+
+            with col3:
+                if st.button("💰 Get Suggestions", key="quick_suggest"):
+                    st.session_state.messages.append({
+                        "role": "user",
+                        "content": "What stocks would you recommend?"
+                    })
+                    st.rerun()
+
+    with st.sidebar:
+        st.session_state.debug_mode = st.toggle("🐞 Debug Mode", value=st.session_state.debug_mode)
+        st.divider()
+
+        st.header("ℹ️ About")
+        st.markdown("""
+        This chatbot uses AI to help you with:
+        - **Stock Valuations** - Check if stocks are under/over valued
+        - **Explanations** - Understand why a stock is valued a certain way
+        - **Portfolio Analysis** - Analyze your portfolio risk
+        - **Recommendations** - Get personalized stock suggestions
+        """)
+
+        st.divider()
+        st.header("📝 Examples")
+        st.markdown("""
+        Try asking:
+        - "What's the valuation for AAPL?"
+        - "Why is TSLA overvalued?"
+        - "Suggest some stocks for me"
+        - "Analyze my portfolio risk"
+        """)
+
+        st.divider()
+        if st.button("🗑️ Clear Chat History"):
+            st.session_state.messages = []
+            st.rerun()
+
+        st.caption(f"Connected to: {API_BASE_URL}")
+        st.caption(f"User ID: {USER_ID}")
