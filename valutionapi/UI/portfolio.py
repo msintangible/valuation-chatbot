@@ -1,5 +1,8 @@
 import requests
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import yfinance as yf
 
 
 API_BASE_URL = "http://localhost:8001"
@@ -39,6 +42,20 @@ def load_portfolio_details(name: str) -> dict | None:
         except Exception as e:
             show_api_error("Could not load portfolio details.", e)
             return None
+
+
+def normalize_holdings(holdings: list) -> list[dict]:
+    normalized = []
+    for holding in holdings:
+        if isinstance(holding, dict):
+            ticker = str(holding.get("ticker", "")).strip().upper()
+            shares = float(holding.get("shares", 1.0) or 1.0)
+        else:
+            ticker = str(holding).strip().upper()
+            shares = 1.0
+        if ticker:
+            normalized.append({"ticker": ticker, "shares": shares})
+    return normalized
 
 
 def render():
@@ -93,6 +110,42 @@ def render():
     st.write(f"**Risk Label:** {details.get('risk_label', 'N/A')}")
     st.write(f"**Risk Score:** {details.get('risk_score', 'N/A')}")
 
+    normalized_holdings = normalize_holdings(details.get("holdings", []))
+    tickers = [h["ticker"] for h in normalized_holdings]
+    shares = [h["shares"] for h in normalized_holdings]
+
+    st.subheader("📊 Portfolio Visualization")
+    if normalized_holdings:
+        st.markdown("**🥧 Allocation Chart**")
+        total = sum(shares)
+        weights = [s / total for s in shares] if total > 0 else [1 / len(shares)] * len(shares)
+        fig, ax = plt.subplots()
+        ax.pie(weights, labels=tickers, autopct="%1.1f%%")
+        ax.axis("equal")
+        st.pyplot(fig)
+        plt.close(fig)
+
+        st.markdown("**📊 Holdings Table**")
+        holdings_df = pd.DataFrame(normalized_holdings)
+        holdings_df.columns = ["Ticker", "Shares"]
+        st.dataframe(holdings_df, use_container_width=True)
+
+        show_charts = st.checkbox("Show Stock Charts", value=False, key="show_stock_charts")
+        if show_charts:
+            st.markdown("**📈 Stock Charts**")
+            for ticker in tickers:
+                with st.expander(f"📈 {ticker} Chart"):
+                    try:
+                        history = yf.Ticker(ticker).history(period="6mo")
+                        if history.empty or "Close" not in history.columns:
+                            st.warning(f"No chart data available for {ticker}.")
+                        else:
+                            st.line_chart(history["Close"])
+                    except Exception as e:
+                        show_api_error(f"Could not load chart for {ticker}.", e)
+    else:
+        st.caption("No holdings available for visualization yet.")
+
     # Holdings
     st.subheader("Holdings")
     col1, col2 = st.columns(2)
@@ -118,13 +171,12 @@ def render():
                 except Exception as e:
                     show_api_error("Could not add ticker.", e)
 
-    holdings = details.get("holdings", [])
-    if holdings:
-        for idx, holding in enumerate(holdings):
-            ticker = holding.get("ticker", "Unknown") if isinstance(holding, dict) else str(holding)
+    if normalized_holdings:
+        for idx, holding in enumerate(normalized_holdings):
+            ticker = holding["ticker"]
             row_col1, row_col2 = st.columns([4, 1])
             with row_col1:
-                st.write(f"- {ticker}")
+                st.write(f"- {ticker} ({holding['shares']})")
             with row_col2:
                 if st.button("Remove", key=f"remove_{selected_portfolio}_{ticker}_{idx}"):
                     with st.spinner(f"Removing {ticker}..."):
