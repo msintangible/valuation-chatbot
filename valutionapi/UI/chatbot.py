@@ -11,7 +11,7 @@ import re
 
 # Configuration
 API_BASE_URL = "http://localhost:8001"
-USER_ID = "3"
+USER_ID = "2"
 
 # ─────────────────────────────────────────────────────────────
 # Helper Functions for Response Rendering

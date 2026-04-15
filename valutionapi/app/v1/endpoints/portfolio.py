@@ -115,6 +115,7 @@ def predict_saved_portfolio(
     holdings = get_holdings_with_shares(db, portfolio.id)
     if not holdings:
         raise HTTPException(status_code=400, detail=f"Portfolio '{name}' has no holdings.")
+    shares_by_ticker = {h["ticker"]: h["shares"] for h in holdings}
 
     model = request.app.state.model
     model_columns = request.app.state.model_columns
@@ -155,7 +156,7 @@ def predict_saved_portfolio(
             "stocks": [
                 {
                     "ticker": item["ticker"],
-                    "shares": holding_values[item["ticker"]] / ticker_prices.get(item["ticker"], 1),
+                    "shares": shares_by_ticker.get(item["ticker"], 0.0),
                     "current_price": ticker_prices.get(item["ticker"]),
                     "holding_value": round(holding_values[item["ticker"]], 2),
                     "weight": item["weight"],
@@ -253,7 +254,7 @@ def add_ticker_to_portfolio(
     portfolio = get_portfolio(db, user_id=user_id, name=name)
     if not portfolio:
         raise HTTPException(status_code=404, detail=f"Portfolio '{name}' not found.")
-    return add_holding(db, portfolio_id=portfolio.id, ticker=body.ticker)
+    return add_holding(db, portfolio_id=portfolio.id, ticker=body.ticker, shares=body.shares)
 
 
 @router.delete("/portfolio/{user_id}/{name}/{ticker}")

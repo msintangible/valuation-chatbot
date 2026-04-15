@@ -160,6 +160,10 @@ class FinancialIntelligenceAgent:
         if tickers:
             intent["entities"]["tickers"] = tickers
 
+        portfolio_name = self._extract_portfolio_name(query)
+        if portfolio_name:
+            intent["entities"]["portfolio_name"] = portfolio_name
+
         # Detect suggestion keywords FIRST (higher priority than portfolio risk)
         suggestion_keywords = ["suggest", "recommend", "what should i", "ideas", "options", "optimize"]
         portfolio_keywords = ["portfolio", "holdings"]
@@ -350,13 +354,25 @@ Tickers:"""
                 })
                 results.append({"tool": "list_portfolios", "data": portfolios_data})
                 
-                # Analyze first portfolio if exists
+                # Analyze requested portfolio if specified; otherwise fallback to first.
                 if isinstance(portfolios_data, list) and len(portfolios_data) > 0:
-                    portfolio_name = portfolios_data[0].get("name")
-                    if portfolio_name:
+                    requested_name = intent.get("entities", {}).get("portfolio_name", "").strip().lower()
+                    selected_portfolio_name = None
+
+                    if requested_name:
+                        for portfolio in portfolios_data:
+                            candidate_name = str(portfolio.get("name", "")).strip()
+                            if candidate_name.lower() == requested_name:
+                                selected_portfolio_name = candidate_name
+                                break
+
+                    if not selected_portfolio_name:
+                        selected_portfolio_name = portfolios_data[0].get("name")
+
+                    if selected_portfolio_name:
                         risk_analysis = await self.tool_executor.call_tool(
                             "portfolio_risk_from_saved",
-                            {"user_id": user_id, "name": portfolio_name}
+                            {"user_id": user_id, "name": selected_portfolio_name}
                         )
                         results.append({"tool": "portfolio_risk", "data": risk_analysis})
             except Exception as e:
@@ -738,6 +754,23 @@ Keep it clear, actionable, and data-driven. All data from endpoints only."""
             return "Want suggestions to optimize your portfolio?"
         else:
             return "What would you like to explore next?"
+
+    def _extract_portfolio_name(self, query: str) -> str:
+        """Extract portfolio name from natural-language portfolio analysis prompts."""
+        normalized_query = query.strip()
+        patterns = [
+            r"analyze\s+(?:my\s+)?portfolio\s+(.+)$",
+            r"portfolio\s+analysis\s+for\s+(.+)$",
+            r"how\s+is\s+(?:my\s+)?portfolio\s+(.+)$",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, normalized_query, flags=re.IGNORECASE)
+            if match:
+                name = match.group(1).strip().strip("\"'?.!,")
+                if name:
+                    return name
+        return ""
 
 
 async def chat_stream(
