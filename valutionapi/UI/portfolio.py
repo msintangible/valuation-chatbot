@@ -1,7 +1,7 @@
 import requests
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 import yfinance as yf
 
 
@@ -119,11 +119,17 @@ def render():
         st.markdown("**🥧 Allocation Chart**")
         total = sum(shares)
         weights = [s / total for s in shares] if total > 0 else [1 / len(shares)] * len(shares)
-        fig, ax = plt.subplots()
-        ax.pie(weights, labels=tickers, autopct="%1.1f%%")
-        ax.axis("equal")
-        st.pyplot(fig)
-        plt.close(fig)
+        allocation_df = pd.DataFrame({"Ticker": tickers, "Weight": weights})
+        if allocation_df.empty:
+            st.info("No data available to display chart")
+        else:
+            allocation_fig = px.pie(
+                allocation_df,
+                names="Ticker",
+                values="Weight",
+                title="Portfolio Allocation",
+            )
+            st.plotly_chart(allocation_fig, use_container_width=True)
 
         st.markdown("**📊 Holdings Table**")
         holdings_df = pd.DataFrame(normalized_holdings)
@@ -138,9 +144,16 @@ def render():
                     try:
                         history = yf.Ticker(ticker).history(period="6mo")
                         if history.empty or "Close" not in history.columns:
-                            st.warning(f"No chart data available for {ticker}.")
+                            st.info("No data available to display chart")
                         else:
-                            st.line_chart(history["Close"])
+                            chart_df = history.reset_index()[["Date", "Close"]]
+                            stock_fig = px.line(
+                                chart_df,
+                                x="Date",
+                                y="Close",
+                                title=f"{ticker} Price (6M)",
+                            )
+                            st.plotly_chart(stock_fig, use_container_width=True)
                     except Exception as e:
                         show_api_error(f"Could not load chart for {ticker}.", e)
     else:

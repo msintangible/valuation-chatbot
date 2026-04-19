@@ -29,6 +29,59 @@ from services.agent_tools import ToolExecutor, ToolRegistry
 load_dotenv()
 
 
+def is_general_query(query: str) -> bool:
+    """Detect greetings/help/very-short non-financial inputs."""
+    normalized = query.strip().lower()
+    if not normalized:
+        return True
+
+    tokens = re.findall(r"[a-zA-Z0-9']+", normalized)
+    if not tokens:
+        return True
+
+    greetings = {"hi", "hello", "hey", "yo", "hola"}
+    help_terms = {
+        "help",
+        "help me",
+        "what can you do",
+        "how does this work",
+        "what do you do",
+    }
+    finance_terms = {
+        "stock",
+        "stocks",
+        "ticker",
+        "analyze",
+        "analysis",
+        "valuation",
+        "overvalued",
+        "undervalued",
+        "portfolio",
+        "risk",
+        "price",
+        "shares",
+        "suggest",
+        "recommend",
+        "compare",
+        "explain",
+    }
+
+    if normalized in help_terms:
+        return True
+
+    if any(token in greetings for token in tokens) and len(tokens) <= 3:
+        return True
+
+    has_ticker_like_text = bool(re.search(r"\b[A-Z]{1,5}\b", query))
+    has_finance_term = any(term in normalized for term in finance_terms)
+
+    # Treat very short non-financial messages as general chat.
+    if len(tokens) <= 2 and not has_finance_term and not has_ticker_like_text:
+        return True
+
+    return False
+
+
 class FinancialIntelligenceAgent:
     """
     Pure Tool Orchestration Agent for Financial Intelligence.
@@ -69,6 +122,20 @@ class FinancialIntelligenceAgent:
         5. Use recommendations for next-action
         """
         print(f"➡️ process_query called with: {query}")
+        if is_general_query(query):
+            return {
+                "response": (
+                    "👋 Hey! I can help with stock and portfolio analysis.\n\n"
+                    "Try one of these:\n"
+                    "- Analyze AAPL\n"
+                    "- Why is TSLA overvalued\n"
+                    "- Analyze portfolio Growth"
+                ),
+                "next_best_action": "Ask a financial query to start analysis.",
+                "tools_used": [],
+                "recommendations": {"top_sectors": [], "suggested_tickers": []}
+            }
+
         # Step 1: Analyze query intent
         intent = self._analyze_intent(query)
 
