@@ -21,11 +21,15 @@ class Settings(BaseSettings):
     api_host: str = Field(default="0.0.0.0", env="API_HOST")
     api_port: int = Field(default=8000, env="API_PORT")
 
+    # LLM settings
+    gemini_api_key: str = Field(default="", env="GEMINI_API_KEY")
+
     # Other settings
     debug: bool = Field(default=False, env="DEBUG")
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 # Create a global settings instance
