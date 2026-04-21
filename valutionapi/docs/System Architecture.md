@@ -29,6 +29,7 @@ Located in: `app/v1/endpoints/`
 | `predictions.py` | `/predictions/` | Prediction history queries |
 | `portfolio.py` | `/predict/portfolio/` | Multi-stock portfolio analysis |
 | `suggestions.py` | `/suggestions/` | Stock recommendations |
+| `chatbot_endpoint.py` | `/chat/` | AI agent orchestration and tool discovery |
 
 **Typical Request Flow:**
 ```python
@@ -60,6 +61,8 @@ Located in: `services/`
 | `shap_explainer.py` | Generate SHAP explanations |
 | `portfolio.py` | Portfolio prediction aggregation & risk scoring |
 | `recommendation_service.py` | Generate personalized suggestions |
+| `chatbot.py` | Intent routing + multi-tool orchestration + response generation |
+| `agent_tools.py` | Tool registry + HTTP tool execution layer |
 | `users.py` | User CRUD (upsert, retrieve) |
 | `predictions.py` | Prediction history queries |
 | `crud_portfolio.py` | Portfolio and holding CRUD operations |
@@ -192,6 +195,30 @@ FOR EACH TICKER:
 [RETURN aggregated response]
 ```
 
+### Scenario: AI Agent Query
+
+```
+CLIENT REQUEST
+    ↓
+[POST /chat/]  ← FastAPI receives user_id + natural-language query
+    ↓
+[FinancialIntelligenceAgent.process_query()]
+    ↓
+[Intent analysis + entity extraction]
+    ↓
+[ToolExecutor.call_tool(...)]  ← Calls backend endpoints via ToolRegistry
+    ↓
+├─ stock_valuation              → /predict/
+├─ shap_explain                 → /explain/
+├─ portfolio_risk_from_saved    → /predict/portfolio/{user_id}/{name}/predict
+├─ user_suggestions             → /suggestions/{user_id}
+└─ portfolio_suggestions        → /portfolio_suggestions/{user_id}/{portfolio_name}
+    ↓
+[LLM formatting + next_best_action]
+    ↓
+[RETURN ChatResponse]
+```
+
 ## Data Models
 
 ### Prediction Flow
@@ -292,6 +319,12 @@ portfolio.assessed_at = datetime.utcnow()
 ```
 
 **Why:** Risk assessment is expensive (calls model 5-10 times per portfolio). Cache avoids recomputation.
+
+### 6. **Tool Registry Pattern for Agent**
+
+`services/agent_tools.py` centralizes tool definitions (`endpoint`, `method`, `schemas`, `when_to_use`) and executes calls through one `ToolExecutor`.
+
+**Why:** Tool metadata and invocation logic stay in one place, so adding/changing tools does not require reworking agent orchestration logic in `chatbot.py`.
 
 ## Error Handling
 

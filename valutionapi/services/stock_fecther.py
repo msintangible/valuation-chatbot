@@ -11,14 +11,14 @@ import yfinance as yf
 # Multiple ETFs per sector — merged to maximise ticker coverage
 # Each ETF tracks the same sector from a different angle / index
 SECTOR_ETFS: dict[str, list[str]] = {
-    "Technology": ["XLK", "VGT", "QQQ", "FTEC"],
-    "Financials": ["XLF", "VFH", "KBWB", "IAI"],
-    "Healthcare": ["XLV", "VHT", "IYH", "FHLC"],
-    "Discretionary": ["XLY", "VCR", "IYC", "FDIS"],
-    "Energy": ["XLE", "VDE", "IYE", "FENY"],
-    "Staples": ["XLP", "VDC", "IYK", "FSTA"],
-    "Industrials": ["XLI", "VIS", "IYJ", "FIDU"],
-    "Utilities": ["XLU", "VPU", "IDU", "FUTY"],
+    "Technology": ["XLK"],
+    "Financials": ["XLF"],
+    "Healthcare": ["XLV"],
+    "Discretionary": ["XLY"],
+    "Energy": ["XLE"],
+    "Staples": ["XLP"],
+    "Industrials": ["XLI"],
+    "Utilities": ["XLU"],
 }
 
 # Static fallback if all ETF fetches fail

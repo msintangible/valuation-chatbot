@@ -40,33 +40,22 @@ Predict whether a stock is undervalued, fairly valued, or overvalued.
 ```json
 {
   "ticker": "AAPL",
-  "predicted_label": 1,
-  "label_text": "Fair Value",
+  "label": "Fair Value",
   "graham_value": 145.30,
   "current_price": 150.25,
   "confidence": 0.87,
-  "shap_summary": {
-    "top_positive_factors": [
-      "High ROE",
-      "Strong revenue growth"
-    ],
-    "top_negative_factors": [
-      "High P/E ratio",
-      "Elevated debt"
-    ]
-  }
+  "predicted_at": "2026-04-21T00:00:00"
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `ticker` | string | Stock ticker |
-| `predicted_label` | integer | 0 = Undervalued, 1 = Fair, 2 = Overvalued |
-| `label_text` | string | Human-readable label |
+| `label` | string | Human-readable label (Undervalued, Fair Value, Overvalued) |
 | `graham_value` | number | Intrinsic value (Graham formula) |
 | `current_price` | number | Latest closing price |
 | `confidence` | number | Model confidence (0.0 to 1.0) |
-| `shap_summary` | object | Top factors affecting prediction |
+| `predicted_at` | string | ISO timestamp when prediction was saved |
 
 **Errors**
 
@@ -108,26 +97,25 @@ Same as `/predict/` but includes detailed SHAP feature importance.
 ```json
 {
   "ticker": "MSFT",
-  "predicted_label": 1,
-  "label_text": "Fair Value",
+  "label": "Fair Value",
   "graham_value": 320.15,
   "current_price": 325.80,
   "confidence": 0.91,
   "shap_summary": {
-    "base_value": 0.45,
+    "summary": "Fair Value: ...",
+    "prediction_meaning": "The model sees the stock as roughly in line with its fundamentals.",
+    "top_positive_features": ["ROE (+0.120)", "EPS (+0.090)"],
+    "top_negative_features": ["Debt_to_Equity (-0.080)"],
     "feature_impacts": [
       {
-        "feature": "roe",
-        "impact": 0.12,
-        "interpretation": "High return on equity pushes value higher"
-      },
-      {
-        "feature": "debt_ratio",
-        "impact": -0.08,
-        "interpretation": "Elevated debt reduces valuation"
+        "feature": "ROE",
+        "shap_value": 0.12,
+        "absolute_impact": 0.12,
+        "direction_for_predicted_label": "supports_prediction",
+        "impact_level": "medium",
+        "investor_meaning": "This feature supports a neutral/fair-value view."
       }
-    ],
-    "summary": "Microsoft is fairly valued due to strong profitability offset by debt concerns."
+    ]
   }
 }
 ```
@@ -403,6 +391,60 @@ Predict risk and valuation for a multi-stock portfolio with weights.
 |--------|--------|
 | 400 | Invalid weights or tickers |
 | 404 | Ticker not found |
+
+---
+
+### POST /predict/portfolio/{user_id}/{name}/predict
+
+**Predict Saved Portfolio (Value-Weighted)**
+
+Run risk analysis for a saved portfolio using holdings already stored in the database.  
+Weights are auto-calculated as:
+
+`(shares × current_price) / total_portfolio_value`
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_id` | string | User identifier |
+| `name` | string | Portfolio name |
+
+**Response (200)**
+
+```json
+{
+  "portfolio_name": "Growth Portfolio",
+  "total_value": 12450.75,
+  "portfolio_risk_score": 0.58,
+  "portfolio_classification": "Medium",
+  "stocks": [
+    {
+      "ticker": "AAPL",
+      "shares": 10.5,
+      "current_price": 176.43,
+      "holding_value": 1852.52,
+      "weight": 0.1488,
+      "prediction": 1,
+      "probability": 0.87,
+      "shap_summary": {}
+    }
+  ],
+  "portfolio_explanation": [],
+  "aggregated_shap": {
+    "top_positive_risk_factors": [],
+    "top_negative_risk_factors": [],
+    "beginner_takeaway": []
+  }
+}
+```
+
+**Errors**
+
+| Status | Reason |
+|--------|--------|
+| 404 | Portfolio not found |
+| 400 | Portfolio has no holdings |
 
 ---
 
@@ -690,6 +732,70 @@ Get recommendations based on holdings in a specific portfolio.
       "shap_summary": {...}
     }
   ]
+}
+```
+
+---
+
+## AI Agent Endpoints
+
+### POST /chat/
+
+**AI Financial Intelligence Chat**
+
+Send a natural-language query. The agent detects intent, executes backend tools, and returns a combined answer.
+
+**Request**
+
+```json
+{
+  "user_id": "alice",
+  "query": "Analyze my portfolio Growth"
+}
+```
+
+**Response (200)**
+
+```json
+{
+  "response": "🧠 ...",
+  "next_best_action": "To diversify your portfolio, consider: META, GOOGL",
+  "tools_used": ["list_portfolios", "portfolio_risk"],
+  "recommendations": {
+    "top_sectors": ["Technology", "Healthcare"],
+    "suggested_tickers": ["META", "GOOGL", "AMZN"]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `response` | string | Final natural-language response |
+| `next_best_action` | string | Suggested next step |
+| `tools_used` | array[string] | Tools/endpoints executed |
+| `recommendations` | object | Personalized sectors and ticker suggestions |
+
+---
+
+### GET /chat/tools
+
+**List AI Agent Tools**
+
+Returns the tool registry the agent can use for orchestration.
+
+**Response (200)**
+
+```json
+{
+  "tools": [
+    {
+      "name": "stock_valuation",
+      "description": "Get ML-based stock valuation prediction (Undervalued/Fair/Overvalued)",
+      "when_to_use": "ALWAYS use for stock valuation queries",
+      "endpoint": "/predict/"
+    }
+  ],
+  "total": 9
 }
 ```
 

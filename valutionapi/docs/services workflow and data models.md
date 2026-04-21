@@ -327,6 +327,63 @@ Remove stock from portfolio.
 
 ---
 
+### 9. **agent_tools.py** — Agent Tool Registry + Executor
+
+Defines all tool metadata and executes HTTP calls to backend endpoints.
+
+**Core classes:**
+
+#### `ToolRegistry`
+
+Registers available tools for the AI agent, including:
+- `stock_valuation` → `POST /predict/`
+- `shap_explain` → `POST /explain/`
+- `portfolio_risk` → `POST /predict/portfolio`
+- `portfolio_risk_from_saved` → `POST /predict/portfolio/{user_id}/{name}/predict`
+- `user_suggestions` → `GET /suggestions/{user_id}`
+- `portfolio_suggestions` → `GET /portfolio_suggestions/{user_id}/{portfolio_name}`
+- `get_user_predictions` → `GET /predictions/user/{user_id}`
+- `list_portfolios` → `GET /predict/portfolio/{user_id}`
+- `get_portfolio` → `GET /predict/portfolio/{user_id}/{name}`
+
+#### `ToolExecutor.call_tool(tool_name, params)`
+
+Execution flow:
+1. Resolve tool from registry
+2. Fill path parameters (`{user_id}`, `{name}`, `{portfolio_name}`)
+3. Dispatch `GET`/`POST` request via `httpx`
+4. Return parsed JSON response (or structured error payload)
+
+---
+
+### 10. **chatbot.py** — Financial Intelligence Agent
+
+Orchestrates backend tools for natural-language financial queries.
+
+#### `FinancialIntelligenceAgent.process_query(user_id: str, query: str)`
+
+**Flow:**
+1. Detect query type (valuation, explanation, portfolio risk, suggestions, comparison)
+2. Extract entities (tickers, optional portfolio name)
+3. Route to tools using `ToolExecutor`
+4. Optionally call recommendation endpoints for personalized suggestions
+5. Generate final response and `next_best_action`
+
+**Return shape:**
+```python
+{
+  "response": str,
+  "next_best_action": str,
+  "tools_used": list[str],
+  "recommendations": {
+    "top_sectors": list[str],
+    "suggested_tickers": list[str]
+  }
+}
+```
+
+---
+
 ## Service Dependencies
 
 ```
@@ -355,6 +412,14 @@ Remove stock from portfolio.
 │                              │
 │ recommendation_service.py    │
 │   └─ generate_suggestions()  │
+│                              │
+│ agent_tools.py               │
+│   ├─ ToolRegistry            │
+│   └─ ToolExecutor.call_tool()│
+│                              │
+│ chatbot.py                   │
+│   └─ process_query()         │
+│       └─ calls tool executor │
 │                              │
 │ users.py, predictions.py,    │
 │ crud_portfolio.py            │

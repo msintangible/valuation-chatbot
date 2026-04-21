@@ -17,6 +17,7 @@ Stock valuation is complex. Beginners struggle to understand if a stock is a goo
 - **Explaining predictions** with SHAP (SHapley Additive exPlanations) — understand which financial metrics drive the prediction
 - **Analyzing portfolios** — assess risk across multiple stocks with weighted predictions
 - **Generating suggestions** — recommend stocks based on user history and sector preferences
+- **AI agent orchestration** — chat with a financial assistant that routes your request to backend tools/endpoints
 - **Tracking history** — store predictions and user data for insights
 
 Unlike a black-box prediction API, every result includes human-readable explanations. New investors can learn *why* a stock is valued as it is.
@@ -61,16 +62,23 @@ curl -X POST http://localhost:8001/predict/ \
 ```json
 {
   "ticker": "AAPL",
-  "predicted_label": 1,
-  "label_text": "Fair Value",
+  "label": "Fair Value",
   "graham_value": 145.30,
   "current_price": 150.25,
   "confidence": 0.87,
-  "shap_summary": {
-    "top_positive_factors": [...],
-    "top_negative_factors": [...]
-  }
+  "predicted_at": "2026-04-21T00:00:00"
 }
+```
+
+### 4. Chat with the AI Agent
+
+```bash
+curl -X POST http://localhost:8001/chat/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user123",
+    "query": "Analyze my portfolio Growth"
+  }'
 ```
 
 ## Installation
@@ -107,6 +115,8 @@ python app/main.py
 
 Open your browser to `http://localhost:8001/docs` for the interactive API explorer.
 
+**AI Agent Requirement:** set `GEMINI_API_KEY` in your environment before calling `/chat/`.
+
 ## Key Features
 
 ### 🎯 Stock Valuation Prediction
@@ -140,6 +150,14 @@ Get stock recommendations based on:
 - Top-performing sectors
 - Historical user behavior
 
+### 🤖 AI Financial Intelligence Agent
+
+The `/chat/` endpoint runs a tool-orchestration agent that:
+- Detects user intent (valuation, explanation, portfolio risk, comparison, suggestions)
+- Calls backend tools/endpoints through a central tool registry
+- Combines results into a single natural-language response
+- Returns `next_best_action` and `tools_used` for transparent recommendations
+
 ### 📈 Prediction History
 
 Track all predictions per user:
@@ -167,13 +185,14 @@ Track all predictions per user:
 └────────────────┬────────────────────────────┘
                  │
         ┌────────▼─────────┐
-        │   FastAPI Routers │  (6 endpoint modules)
+        │   FastAPI Routers │  (7 endpoint modules)
         │ - /predict       │
         │ - /explain       │
         │ - /predictions   │
         │ - /users         │
         │ - /portfolio     │
         │ - /suggestions   │
+        │ - /chat          │
         └────────┬─────────┘
                  │
         ┌────────▼──────────┐
@@ -183,6 +202,8 @@ Track all predictions per user:
         │ - portfolio.py    │
         │ - shap_explainer  │
         │ - recommendation  │
+        │ - chatbot         │
+        │ - agent_tools     │
         └────────┬──────────┘
                  │
         ┌────────▼───────────┐
@@ -212,11 +233,14 @@ Track all predictions per user:
 | `GET` | `/predictions/user/{user_id}` | Prediction history for user |
 | `GET` | `/predictions/ticker/{ticker}` | All predictions for a ticker |
 | `POST` | `/predict/portfolio` | Multi-stock portfolio prediction |
+| `POST` | `/predict/portfolio/{user_id}/{name}/predict` | Predict risk for a saved portfolio using DB holdings |
 | `POST` | `/predict/portfolio/create` | Create named portfolio |
 | `GET` | `/predict/portfolio/{user_id}` | List user portfolios |
 | `POST` | `/predict/portfolio/{user_id}/{name}/add` | Add holding to portfolio |
 | `GET` | `/suggestions/{user_id}` | Get stock recommendations |
 | `GET` | `/portfolio_suggestions/{user_id}/{portfolio_name}` | Suggestions for portfolio |
+| `POST` | `/chat/` | AI agent endpoint (intent routing + tool orchestration) |
+| `GET` | `/chat/tools` | List all tools the AI agent can call |
 
 ## Configuration
 

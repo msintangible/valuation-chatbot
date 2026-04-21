@@ -94,6 +94,11 @@ Portfolio operations (prediction, CRUD).
 @router.post("/portfolio")
 def predict_portfolio(predict_request: PortfolioPredictRequest, request: Request, db: Session):
     # Multi-stock prediction with weights
+
+@router.post("/portfolio/{user_id}/{name}/predict")
+def predict_saved_portfolio(user_id: str, name: str, request: Request, db: Session):
+    # Predict a saved portfolio using holdings from DB
+    # Weights are computed from (shares * current_price) / total_value
 ```
 
 **Portfolio CRUD:**
@@ -141,6 +146,34 @@ def get_user_suggestions(user_id: str, request: Request, top_n: int, db: Session
 def get_portfolio_suggestions(user_id: str, portfolio_name: str, request: Request, top_n: int, sector_count: int, db: Session):
     # Portfolio-based suggestions
 ```
+
+---
+
+### 7. **chatbot_endpoint.py** — `/chat/` endpoint
+
+AI financial intelligence endpoint (tool orchestration agent).
+
+```python
+@router.post("/")
+async def chat(request: ChatRequest, db: Session):
+    # 1. Build FinancialIntelligenceAgent
+    # 2. Analyze query intent
+    # 3. Call backend tools/endpoints
+    # 4. Return response + next_best_action + tools_used
+
+@router.get("/tools")
+async def list_available_tools():
+    # Return all tools from ToolRegistry
+```
+
+**Key Points:**
+- The endpoint does not contain valuation logic; it orchestrates backend tools
+- Tool metadata comes from `services/agent_tools.py`
+- Response includes:
+  - `response`
+  - `next_best_action`
+  - `tools_used`
+  - `recommendations`
 
 ---
 
