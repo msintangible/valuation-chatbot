@@ -1,5 +1,6 @@
 import datetime as dt
 
+import pytest
 from models.models import Prediction
 
 
@@ -61,3 +62,57 @@ def test_get_ticker_predictions(client, db_session, seeded_user):
 
     assert response.status_code == 200
     assert response.json()[0]["user_id"] == seeded_user.user_id
+
+
+def test_get_user_predictions_empty_for_unknown_user(client):
+    response = client.get("/predictions/user/nobody")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_get_last_prediction_found(client, db_session, seeded_user):
+    row = Prediction(
+        user_id=seeded_user.user_id,
+        ticker="AAPL",
+        predicted_label=1,
+        label_text="Fair Value",
+        graham_value=110.0,
+        current_price=108.0,
+        confidence=0.65,
+        shap_summary='{"summary":"last"}',
+    )
+    db_session.add(row)
+    db_session.commit()
+
+    response = client.get(f"/predictions/last/{seeded_user.user_id}/AAPL")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["label_text"] == "Fair Value"
+    assert body["confidence"] == pytest.approx(0.65)
+
+
+def test_get_user_predictions_respects_limit(client, db_session, seeded_user):
+    for i in range(5):
+        db_session.add(
+            Prediction(
+                user_id=seeded_user.user_id,
+                ticker=f"T{i}",
+                predicted_label=1,
+                label_text="Fair Value",
+                graham_value=100.0,
+                current_price=99.0,
+                confidence=0.5,
+                shap_summary="{}",
+            )
+        )
+    db_session.commit()
+
+    response = client.get(f"/predictions/user/{seeded_user.user_id}?limit=3")
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+
+
+def test_get_ticker_predictions_empty_for_unknown_ticker(client):
+    response = client.get("/predictions/ticker/XXXXXX")
+    assert response.status_code == 200
+    assert response.json() == []
