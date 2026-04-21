@@ -11,6 +11,7 @@ from typing import Optional, List
 
 from db.database import get_db
 from services.chatbot import FinancialIntelligenceAgent
+from services.users import upsert_user
 
 router = APIRouter(prefix="/chat", tags=["Chatbot"])
 
@@ -24,6 +25,7 @@ class ChatResponse(BaseModel):
     response: str
     next_best_action: str
     tools_used: List[str]
+    errors: List[dict] = []
     recommendations: dict
 
 
@@ -48,6 +50,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     All intelligence comes from backend services - zero custom logic.
     """
     try:
+        upsert_user(db, user_id=request.user_id)
         agent = FinancialIntelligenceAgent(db=db)
         result = await agent.process_query(
             user_id=request.user_id,
@@ -58,6 +61,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
             response=result["response"],
             next_best_action=result["next_best_action"],
             tools_used=result["tools_used"],
+            errors=result.get("errors", []),
             recommendations=result["recommendations"]
         )
     

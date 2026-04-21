@@ -7,8 +7,7 @@ Auto-discovers FastAPI endpoints and converts them into callable agent tools.
 """
 
 import httpx
-from typing import Dict, Any, List, Optional, Callable
-from datetime import datetime
+from typing import Dict, Any, List, Optional
 
 
 class ToolRegistry:
@@ -200,6 +199,23 @@ class ToolExecutor:
     def __init__(self, base_url: str = "http://localhost:8001"):
         self.base_url = base_url
         self.registry = ToolRegistry(base_url)
+
+    def _error_response(
+        self,
+        tool_name: str,
+        message: str,
+        ticker: Optional[str] = None,
+        http_status: Optional[int] = None,
+        detail: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "status": "error",
+            "message": message,
+            "ticker": ticker,
+            "tool": tool_name,
+            "http_status": http_status,
+            "detail": detail,
+        }
     
     async def call_tool(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -214,10 +230,11 @@ class ToolExecutor:
         """
         tool = self.registry.get_tool(tool_name)
         if not tool:
-            return {
-                "error": f"Unknown tool: {tool_name}",
-                "available_tools": self.registry.list_tools()
-            }
+            return self._error_response(
+                tool_name=tool_name,
+                message=f"Unknown tool: {tool_name}",
+                detail=str(self.registry.list_tools()),
+            )
         
         try:
             # Build endpoint URL with path params if needed
@@ -238,41 +255,65 @@ class ToolExecutor:
             print(f"   Method: {tool['method']}")
             print(f"   Params: {params}")
             
-            # Execute request
-            async with httpx.AsyncClient(timeout=700.0) as client:
-                if tool["method"] == "POST":
-                    response = await client.post(url, json=params)
-                elif tool["method"] == "GET":
-                    # Remove path params from query params
-                    query_params = {k: v for k, v in params.items() 
-                                   if k not in ["user_id", "name", "portfolio_name"]}
-                    print(f"   Query params: {query_params}")
-                    response = await client.get(url, params=query_params)
-                else:
-                    return {"error": f"Unsupported method: {tool['method']}"}
-                
-                print(f"   Response status: {response.status_code}")
-                response.raise_for_status()
-                result = response.json()
-                print(f"   Response data: {result}")
-                return result
+            # Execute request (auto-retry once on timeout)
+            for attempt in range(2):
+                try:
+                    async with httpx.AsyncClient(timeout=700.0) as client:
+                        if tool["method"] == "POST":
+                            response = await client.post(url, json=params)
+                        elif tool["method"] == "GET":
+                            # Remove path params from query params
+                            query_params = {k: v for k, v in params.items() if k not in ["user_id", "name", "portfolio_name"]}
+                            print(f"   Query params: {query_params}")
+                            response = await client.get(url, params=query_params)
+                        else:
+                            return self._error_response(
+                                tool_name=tool_name,
+                                message=f"Unsupported method: {tool['method']}",
+                                ticker=params.get("ticker"),
+                            )
+
+                        print(f"   Response status: {response.status_code}")
+                        response.raise_for_status()
+                        result = response.json()
+                        print(f"   Response data: {result}")
+                        return result
+                except httpx.TimeoutException:
+                    if attempt == 0:
+                        continue
+                    return self._error_response(
+                        tool_name=tool_name,
+                        message="Request timed out while retrieving data",
+                        ticker=params.get("ticker"),
+                    )
                 
         except httpx.HTTPStatusError as e:
             print(f"❌ HTTP Error: {e.response.status_code}")
             print(f"   Response text: {e.response.text}")
-            return {
-                "error": f"HTTP {e.response.status_code}",
-                "detail": e.response.text,
-                "tool": tool_name
-            }
+            status_code = e.response.status_code
+            if status_code == 404:
+                message = "Stock data not found or unavailable"
+            elif status_code >= 500:
+                message = "Backend service temporarily unavailable"
+            else:
+                message = "Unable to retrieve data from backend service"
+            return self._error_response(
+                tool_name=tool_name,
+                message=message,
+                ticker=params.get("ticker"),
+                http_status=status_code,
+                detail=e.response.text,
+            )
         except Exception as e:
             print(f"❌ Exception: {type(e).__name__}: {str(e)}")
             import traceback
             traceback.print_exc()
-            return {
-                "error": str(e) or f"{type(e).__name__}",
-                "tool": tool_name
-            }
+            return self._error_response(
+                tool_name=tool_name,
+                message="Unable to retrieve data from backend service",
+                ticker=params.get("ticker"),
+                detail=str(e) or f"{type(e).__name__}",
+            )
     
     async def call_stock_valuation(self, ticker: str, user_id: str) -> Dict[str, Any]:
         """Convenience wrapper for stock valuation."""

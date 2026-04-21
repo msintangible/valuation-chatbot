@@ -1,6 +1,5 @@
-from datetime import datetime
 from sqlalchemy.orm import Session
-from models.models import User, Prediction, RequestLog
+from models.models import RequestLog
 
 
 def log_request(
@@ -23,13 +22,23 @@ def log_request(
         error_detail: populated only when status = "error"
         duration_ms:  how long the request took in milliseconds
     """
+    safe_user_id = (user_id or "").strip() or "unknown"
+    safe_request_type = (request_type or "").strip() or "unknown"
+    safe_ticker = ticker.strip().upper() if isinstance(ticker, str) and ticker.strip() else None
+    safe_status = "error" if status == "error" else "success"
+    safe_error_detail = str(error_detail) if error_detail else None
+    safe_duration_ms = float(duration_ms) if duration_ms is not None else None
+
     entry = RequestLog(
-        user_id=user_id,
-        request_type=request_type,
-        ticker=ticker,
-        status=status,
-        error_detail=error_detail,
-        duration_ms=duration_ms,
+        user_id=safe_user_id,
+        request_type=safe_request_type,
+        ticker=safe_ticker,
+        status=safe_status,
+        error_detail=safe_error_detail,
+        duration_ms=safe_duration_ms,
     )
-    db.add(entry)
-    db.commit()
+    try:
+        db.add(entry)
+        db.commit()
+    except Exception:
+        db.rollback()

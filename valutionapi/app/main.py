@@ -1,11 +1,15 @@
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
-from contextlib import asynccontextmanager
+import json
 import os
+import time
+from contextlib import asynccontextmanager
+from typing import Any, Dict, Optional
 
-from db.database import init_db
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+
+from db.database import SessionLocal, init_db
 from services.AI_model import load_valuation_model, load_model_columns
+from services.request_logs import log_request
 from app.v1.endpoints.predict import router as predict_router
 from app.v1.endpoints.users import router as users_router
 from app.v1.endpoints.predictions import router as predictions_router
@@ -36,6 +40,95 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+def _infer_request_type(path: str) -> str:
+    cleaned = (path or "").strip("/")
+    if not cleaned:
+        return "root"
+    return cleaned.split("/")[0]
+
+
+def _safe_json_dict(raw_body: bytes) -> Dict[str, Any]:
+    if not raw_body:
+        return {}
+    try:
+        data = json.loads(raw_body.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _extract_user_id(payload: Dict[str, Any]) -> str:
+    value = payload.get("user_id")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return "unknown"
+
+
+def _extract_ticker(payload: Dict[str, Any]) -> Optional[str]:
+    value = payload.get("ticker")
+    if isinstance(value, str) and value.strip():
+        return value.strip().upper()
+    return None
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    raw_body = await request.body()
+    payload = _safe_json_dict(raw_body)
+
+    base_request_type = _infer_request_type(request.url.path)
+    base_user_id = _extract_user_id(payload)
+    base_ticker = _extract_ticker(payload)
+
+    db = SessionLocal()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - started) * 1000.0
+
+        # Endpoints can provide explicit context for clearer logs.
+        context = getattr(request.state, "log_context", {}) or {}
+        request_type = context.get("request_type", base_request_type)
+        user_id = context.get("user_id", base_user_id)
+        ticker = context.get("ticker", base_ticker)
+
+        status = "success" if response.status_code < 400 else "error"
+        error_detail = None if status == "success" else f"HTTP {response.status_code}"
+
+        log_request(
+            db=db,
+            user_id=user_id,
+            request_type=request_type,
+            ticker=ticker,
+            status=status,
+            error_detail=error_detail,
+            duration_ms=duration_ms,
+        )
+        return response
+
+    except Exception as exc:
+        duration_ms = (time.perf_counter() - started) * 1000.0
+        context = getattr(request.state, "log_context", {}) or {}
+
+        log_request(
+            db=db,
+            user_id=context.get("user_id", base_user_id),
+            request_type=context.get("request_type", base_request_type),
+            ticker=context.get("ticker", base_ticker),
+            status="error",
+            error_detail=str(exc),
+            duration_ms=duration_ms,
+        )
+        raise
+    finally:
+        db.close()
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(_: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 # Include API router
 app.include_router(predict_router)

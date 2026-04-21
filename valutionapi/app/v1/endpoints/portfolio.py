@@ -53,6 +53,11 @@ def predict_portfolio(
     """
     model = request.app.state.model
     model_columns = request.app.state.model_columns
+    request.state.log_context = {
+        "user_id": predict_request.user_id,
+        "request_type": "portfolio",
+        "ticker": predict_request.portfolio_name,
+    }
 
     try:
         stock_results = run_portfolio_predictions(
@@ -109,6 +114,11 @@ def predict_saved_portfolio(
     """
 
     portfolio = get_portfolio(db, user_id=user_id, name=name)
+    request.state.log_context = {
+        "user_id": user_id,
+        "request_type": "portfolio",
+        "ticker": name,
+    }
     if not portfolio:
         raise HTTPException(status_code=404, detail=f"Portfolio '{name}' not found.")
 

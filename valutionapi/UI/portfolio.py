@@ -3,10 +3,13 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import yfinance as yf
-
+import uuid
 
 API_BASE_URL = "http://localhost:8001"
-USER_ID = "2"
+if "user_id" not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
+
+USER_ID = st.session_state.user_id
 
 
 def show_api_error(message: str, error: Exception) -> None:

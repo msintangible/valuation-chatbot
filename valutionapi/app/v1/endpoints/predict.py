@@ -4,6 +4,7 @@ from fastapi import Request
 
 from db.database import get_db
 from services.predict import run_prediction
+from services.users import upsert_user
 from schemas.schemas import PredictRequest
 
 router = APIRouter(prefix="/predict", tags=["Predictions"])
@@ -19,8 +20,14 @@ def predict_stock(predict_request: PredictRequest, request: Request, db: Session
     user_id = predict_request.user_id
     model = request.app.state.model
     model_columns = request.app.state.model_columns
+    request.state.log_context = {
+        "user_id": user_id,
+        "request_type": "predict",
+        "ticker": ticker,
+    }
 
     try:
+        upsert_user(db, user_id=user_id)
         result = run_prediction(ticker, user_id, model, model_columns, db)
         return result
     except ValueError as e:

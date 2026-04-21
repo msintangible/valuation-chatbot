@@ -25,6 +25,7 @@ import json
 import re
 
 from services.agent_tools import ToolExecutor, ToolRegistry
+from models.models import Prediction
 
 load_dotenv()
 
@@ -141,7 +142,7 @@ class FinancialIntelligenceAgent:
 
         tickers = intent.get("entities", {}).get("tickers", [])
 
-        ticker_required_intents = ["stock_valuation", "explanation", "comparison"]
+        ticker_required_intents = ["stock_valuation", "comparison"]
 
         if intent["type"] in ticker_required_intents and not tickers:
             return {
@@ -160,6 +161,7 @@ class FinancialIntelligenceAgent:
         
         # Step 2: Execute endpoints based on intent
         tool_results = await self._execute_tools(user_id, query, intent)
+        tool_errors = self._collect_tool_errors(tool_results)
         
         # Step 3: Get personalized recommendations from backend service
         should_get_recommendations = (
@@ -193,11 +195,31 @@ class FinancialIntelligenceAgent:
             "response": response,
             "next_best_action": next_action,
             "tools_used": [r["tool"] for r in tool_results if "tool" in r],
+            "errors": tool_errors,
             "recommendations": {
                 "top_sectors": recommendations.get("top_sectors", []),
                 "suggested_tickers": [s.get("ticker") for s in recommendations.get("suggestions", [])[:3]]
             }
         }
+
+    def _collect_tool_errors(self, tool_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        errors: List[Dict[str, Any]] = []
+        for result in tool_results:
+            data = result.get("data", {})
+            if isinstance(data, dict) and data.get("status") == "error":
+                item = dict(data)
+                item.setdefault("tool", result.get("tool"))
+                errors.append(item)
+            elif "error" in result:
+                errors.append(
+                    {
+                        "status": "error",
+                        "tool": result.get("tool"),
+                        "message": result.get("error", "Tool call failed"),
+                        "ticker": result.get("ticker"),
+                    }
+                )
+        return errors
     
     def _analyze_intent(self, query: str) -> Dict[str, Any]:
         """
@@ -254,6 +276,9 @@ class FinancialIntelligenceAgent:
                 intent["type"] = "explanation"
                 intent["confidence"] = 0.95
                 return intent
+            intent["type"] = "explanation"
+            intent["confidence"] = 0.8
+            return intent
         
         # Detect portfolio risk keywords (AFTER suggestion check)
         portfolio_risk_keywords = ["portfolio risk", "analyze portfolio", "portfolio analysis", "how is my portfolio"]
@@ -361,6 +386,16 @@ Tickers:"""
         except Exception as e:
             print(f"LLM ticker extraction failed: {e}")
             return []
+
+    def _get_latest_user_ticker(self, user_id: str) -> str:
+        """Fallback ticker from latest stored prediction for conversational follow-ups."""
+        row = (
+            self.db.query(Prediction)
+            .filter(Prediction.user_id == user_id)
+            .order_by(Prediction.predicted_at.desc())
+            .first()
+        )
+        return row.ticker if row and row.ticker else ""
     
     async def _execute_tools(
         self, 
@@ -398,8 +433,20 @@ Tickers:"""
                 results.append({"tool": "stock_valuation", "error": str(e)})
         
         # Rule 2: Explanation queries (always include SHAP)
-        elif intent_type == "explanation" and tickers:
-            ticker = tickers[0]
+        elif intent_type == "explanation":
+            ticker = tickers[0] if tickers else self._get_latest_user_ticker(user_id)
+            if not ticker:
+                results.append(
+                    {
+                        "tool": "shap_explain",
+                        "data": {
+                            "status": "error",
+                            "message": "No previous stock analysis found. Analyze a stock first.",
+                            "ticker": None,
+                        },
+                    }
+                )
+                return results
             try:
                 # Get valuation
                 valuation = await self.tool_executor.call_stock_valuation(ticker, user_id)
@@ -744,20 +791,37 @@ Keep it clear, actionable, and data-driven. All data from endpoints only."""
             data = result.get("data", {})
             
             if tool_name == "stock_valuation":
+                if isinstance(data, dict) and data.get("status") == "error":
+                    ticker = data.get("ticker") or "this stock"
+                    response_parts.append(
+                        f"⚠️ Unable to retrieve data for {ticker}. This may be due to:\n"
+                        "- Invalid ticker\n"
+                        "- Temporary API issue\n"
+                        "- Missing financial data\n\n"
+                        "Try again or use a different stock."
+                    )
+                    continue
                 # Endpoint returns: label, confidence, current_price, graham_value
                 label = data.get("label", "N/A")
-                confidence = data.get("confidence", 0)
-                price = data.get("current_price", 0)
-                graham_value = data.get("graham_value", 0)
+                confidence = data.get("confidence")
+                price = data.get("current_price")
+                graham_value = data.get("graham_value")
+                confidence_text = f"{float(confidence):.1%}" if isinstance(confidence, (int, float)) else "N/A"
+                price_text = f"${float(price):.2f}" if isinstance(price, (int, float)) else "Unavailable"
+                graham_text = f"${float(graham_value):.2f}" if isinstance(graham_value, (int, float)) else "Unavailable"
                 response_parts.append(
-                    f"📊 **Valuation**: {label} (Confidence: {confidence:.1%})\n"
-                    f"Current Price: ${price:.2f} | Graham Value: ${graham_value:.2f}"
+                    f"📊 **Valuation**: {label} (Confidence: {confidence_text})\n"
+                    f"Current Price: {price_text} | Graham Value: {graham_text}"
                 )
             
             elif tool_name == "shap_explain":
                 response_parts.append("🔍 **Explanation Available**\n")
-                if "beginner_explanation" in data:
+                if isinstance(data, dict) and data.get("status") == "error":
+                    response_parts.append(data.get("message", "Detailed explanation is currently unavailable."))
+                elif "beginner_explanation" in data:
                     response_parts.append(data["beginner_explanation"])
+                elif "shap_summary" in data and isinstance(data.get("shap_summary"), dict):
+                    response_parts.append(data["shap_summary"].get("summary", "Detailed SHAP summary not available."))
         
         # Add recommendations from service
         top_sectors = recommendations.get("top_sectors", []) or [recommendations.get("top_sector", "")]

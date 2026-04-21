@@ -8,10 +8,14 @@ import streamlit as st
 import requests
 from typing import Dict, Any
 import re
+import uuid
 
 # Configuration
 API_BASE_URL = "http://localhost:8001"
-USER_ID = "2"
+if "user_id" not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
+
+USER_ID = st.session_state.user_id
 
 # ─────────────────────────────────────────────────────────────
 # Helper Functions for Response Rendering
@@ -135,6 +139,77 @@ def display_quick_actions(tickers: list[str]):
             st.rerun()
 
 
+def is_followup_memory_prompt(prompt: str, tickers: list[str]) -> bool:
+    if tickers:
+        return False
+    normalized = prompt.strip().lower().rstrip("?.!")
+    if normalized in {"explain more", "why", "go deeper", "deeper", "more detail", "tell me more"}:
+        return True
+    if "explain" in normalized and ("valuation" in normalized or "valution" in normalized):
+        return True
+    return False
+
+
+def build_memory_followup_response() -> Dict[str, Any]:
+    last_result = st.session_state.get("last_result")
+    last_ticker = st.session_state.get("last_ticker")
+    last_intent = st.session_state.get("last_intent")
+
+    if not last_result:
+        return {
+            "response": "I need a previous stock analysis to explain further. Try 'Analyze AAPL'.",
+            "next_best_action": "Run a stock analysis first (e.g., Analyze AAPL).",
+            "tools_used": ["session_memory"],
+            "errors": [],
+            "recommendations": {"top_sectors": [], "suggested_tickers": []},
+        }
+
+    response_text = last_result.get("response", "")
+    valuation = parse_valuation_data(response_text)
+    ticker = last_ticker or "that stock"
+    prediction = valuation.get("prediction", "the current valuation")
+    confidence = valuation.get("confidence", "N/A")
+    price = valuation.get("current_price", "Unavailable")
+    graham = valuation.get("graham_value", "Unavailable")
+
+    deeper = (
+        f"🔍 **Deeper explanation for {ticker}**\n\n"
+        f"- Current assessment: **{prediction}**\n"
+        f"- Confidence: **{confidence}**\n"
+        f"- Current Price: **{price}**\n"
+        f"- Graham Value: **{graham}**\n\n"
+        "What this means:\n"
+        "- If the current price is far above Graham Value, the stock is likely overvalued.\n"
+        "- If current price is below Graham Value, the stock may have upside potential.\n"
+        "- Confidence shows how strongly the model supports this valuation view.\n\n"
+        f"Context source: your previous **{last_intent or 'stock'}** result stored in session memory."
+    )
+
+    return {
+        "response": deeper,
+        "next_best_action": f"Ask for SHAP details or compare {ticker} with another stock.",
+        "tools_used": ["session_memory"],
+        "errors": [],
+        "recommendations": {"top_sectors": [], "suggested_tickers": []},
+    }
+
+
+def render_backend_data_error(errors: list[dict]) -> None:
+    first = errors[0] if errors else {}
+    ticker = first.get("ticker") or "this stock"
+    st.warning(
+        f"⚠️ Unable to retrieve data for {ticker}. This may be due to:\n\n"
+        "- Invalid ticker\n"
+        "- Temporary API issue\n"
+        "- Missing financial data\n\n"
+        "Try again or use a different stock."
+    )
+    if st.button("🔄 Retry", key=f"retry_backend_error_{ticker}"):
+        if st.session_state.get("last_prompt"):
+            st.session_state.retry_prompt = st.session_state.last_prompt
+        st.rerun()
+
+
 def handle_error(error_type: str, error_msg: str, original_error: Exception = None):
     """
     Render user-friendly error message with retry button and details.
@@ -177,6 +252,8 @@ def handle_error(error_type: str, error_msg: str, original_error: Exception = No
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔄 Retry Last Query"):
+            if st.session_state.get("last_prompt"):
+                st.session_state.retry_prompt = st.session_state.last_prompt
             st.rerun()
     
     with col2:
@@ -203,7 +280,15 @@ def render_response(data: Dict[str, Any], tickers: list[str] = None, show_quick_
     response_text = data.get("response", "")
     next_action = data.get("next_best_action", "")
     tools_used = data.get("tools_used", [])
+    errors = data.get("errors", [])
     tickers = tickers or []
+
+    if errors:
+        render_backend_data_error(errors)
+        st.markdown(response_text)
+        if next_action:
+            st.info(f"💡 **Suggestion:** {next_action}")
+        return
     
     # Parse valuation data if present
     valuation = parse_valuation_data(response_text)
@@ -294,6 +379,16 @@ def render():
         st.session_state.messages = []
     if "debug_mode" not in st.session_state:
         st.session_state.debug_mode = False
+    if "last_result" not in st.session_state:
+        st.session_state.last_result = None
+    if "last_ticker" not in st.session_state:
+        st.session_state.last_ticker = None
+    if "last_intent" not in st.session_state:
+        st.session_state.last_intent = None
+    if "last_prompt" not in st.session_state:
+        st.session_state.last_prompt = None
+    if "retry_prompt" not in st.session_state:
+        st.session_state.retry_prompt = None
 
     st.title("💰 Financial Intelligence Chatbot")
     st.markdown("Ask about stock valuations, portfolio analysis, and get personalized recommendations.")
@@ -311,18 +406,27 @@ def render():
 
     def process_message(prompt: str, display_output: bool = True):
         """Process a user query and get API response. Can be called from chat input or quick actions."""
+        st.session_state.last_prompt = prompt
+
         if display_output:
             with st.chat_message("user"):
                 st.markdown(prompt)
 
         with st.chat_message("assistant"):
             status_container = st.empty()
+            tickers = extract_tickers(prompt)
+            api_query = prompt
 
             try:
+                if is_followup_memory_prompt(prompt, tickers):
+                    last_ticker = st.session_state.get("last_ticker")
+                    if last_ticker:
+                        api_query = f"{prompt} for {last_ticker}"
+                        tickers = [last_ticker]
+
                 with status_container.container():
                     st.info("🔍 Analyzing query...")
 
-                tickers = extract_tickers(prompt)
                 display_ticker_chips(tickers)
 
                 with status_container.container():
@@ -330,17 +434,25 @@ def render():
 
                 payload = {
                     "user_id": USER_ID,
-                    "query": prompt
+                    "query": api_query
                 }
 
                 if st.session_state.debug_mode:
                     st.write("📤 Sending:", payload)
 
-                response = requests.post(
-                    f"{API_BASE_URL}/chat/",
-                    json=payload,
-                    timeout=60
-                )
+                response = None
+                for attempt in range(2):
+                    try:
+                        response = requests.post(
+                            f"{API_BASE_URL}/chat/",
+                            json=payload,
+                            timeout=60
+                        )
+                        break
+                    except requests.exceptions.Timeout:
+                        if attempt == 0:
+                            continue
+                        raise
 
                 if st.session_state.debug_mode:
                     st.write("📥 Raw response:", response.text)
@@ -355,6 +467,17 @@ def render():
 
                 status_container.empty()
                 render_response(data, tickers)
+
+                if not data.get("errors"):
+                    st.session_state.last_result = data
+                    st.session_state.last_ticker = tickers[0] if tickers else st.session_state.get("last_ticker")
+                    used_tools = data.get("tools_used", [])
+                    if "stock_valuation" in used_tools:
+                        st.session_state.last_intent = "stock_valuation"
+                    elif "shap_explain" in used_tools:
+                        st.session_state.last_intent = "explanation"
+                    else:
+                        st.session_state.last_intent = "general"
 
                 assistant_message = data.get("response", "No response received.")
                 next_action = data.get("next_best_action", "")
@@ -429,7 +552,11 @@ def render():
 
     chat_input = st.chat_input("Ask about stocks, portfolios, or get recommendations...")
 
-    if unprocessed:
+    if st.session_state.retry_prompt:
+        prompt = st.session_state.retry_prompt
+        st.session_state.retry_prompt = None
+        display_output = False
+    elif unprocessed:
         prompt = unprocessed
         display_output = False
     elif chat_input:

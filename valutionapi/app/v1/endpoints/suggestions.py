@@ -22,6 +22,11 @@ def get_user_suggestions(
     """Return top-sector suggestions for one user based on ticker prediction history."""
     if not user_id or not user_id.strip():
         raise HTTPException(status_code=400, detail="user_id must be a non-empty string.")
+    request.state.log_context = {
+        "user_id": user_id,
+        "request_type": "suggestions",
+        "ticker": None,
+    }
 
     top_sectors, suggestions = generate_suggestions(
         db=db,
@@ -55,6 +60,11 @@ def get_portfolio_suggestions(
         raise HTTPException(status_code=400, detail="portfolio_name must be a non-empty string.")
     if sector_count < 1:
         raise HTTPException(status_code=400, detail="sector_count must be >= 1.")
+    request.state.log_context = {
+        "user_id": user_id,
+        "request_type": "suggestions",
+        "ticker": portfolio_name,
+    }
 
     top_sectors, suggestions = generate_suggestions_from_portfolio(
         db=db,

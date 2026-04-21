@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from services.predict import run_prediction_shap
 from services.crud_portfolio import update_portfolio_risk, create_portfolio, get_portfolio, add_holding
-from services.request_logs import log_request
 
 RISK_BASE_BY_LABEL = {
     "Undervalued": 0.2,
@@ -145,14 +144,6 @@ def run_portfolio_predictions(
         risk_label=risk_label,
         pct_overvalued=pct_overvalued,
         avg_confidence=avg_confidence,
-    )
-
-    log_request(
-        db=db,
-        user_id=user_id,
-        request_type="portfolio",
-        status="success",
-        ticker=portfolio_name,
     )
 
     return results
