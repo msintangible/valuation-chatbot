@@ -19,12 +19,20 @@ from app.v1.endpoints.portfolio import router as portfolio_router
 from app.v1.endpoints.suggestions import router as suggestions_router
 from app.v1.endpoints.chatbot_endpoint import router as chatbot_router
 
-# the router we will define
-
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Application lifecycle management.
+    
+    Startup:
+    - Initialize SQLite database (create tables if needed)
+    - Load pre-trained XGBoost valuation model
+    - Load model feature column names (21 features)
+    
+    Shutdown:
+    - Cleanup resources (if needed)
+    """
     # Startup
     init_db()
     app.state.model = load_valuation_model()
@@ -43,6 +51,7 @@ app = FastAPI(
 
 
 def _infer_request_type(path: str) -> str:
+    """Extract first path segment as request type for logging."""
     cleaned = (path or "").strip("/")
     if not cleaned:
         return "root"
@@ -50,6 +59,7 @@ def _infer_request_type(path: str) -> str:
 
 
 def _safe_json_dict(raw_body: bytes) -> Dict[str, Any]:
+    """Safely parse request body JSON."""
     if not raw_body:
         return {}
     try:
@@ -60,6 +70,7 @@ def _safe_json_dict(raw_body: bytes) -> Dict[str, Any]:
 
 
 def _extract_user_id(payload: Dict[str, Any]) -> str:
+    """Extract user_id from request payload."""
     value = payload.get("user_id")
     if isinstance(value, str) and value.strip():
         return value.strip()
@@ -67,6 +78,7 @@ def _extract_user_id(payload: Dict[str, Any]) -> str:
 
 
 def _extract_ticker(payload: Dict[str, Any]) -> Optional[str]:
+    """Extract ticker symbol from request payload."""
     value = payload.get("ticker")
     if isinstance(value, str) and value.strip():
         return value.strip().upper()
@@ -75,6 +87,22 @@ def _extract_ticker(payload: Dict[str, Any]) -> Optional[str]:
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
+    """
+    Centralized request logging middleware.
+    
+    Logs all requests with:
+    - user_id: from request body
+    - request_type: from URL path
+    - ticker: from request body
+    - status: success or error based on response code
+    - duration_ms: total request time
+    - error_detail: HTTP status or exception message
+    
+    This enables:
+    - Analytics on usage patterns
+    - Debugging intent routing behavior
+    - Performance tracking
+    """
     started = time.perf_counter()
     raw_body = await request.body()
     payload = _safe_json_dict(raw_body)
@@ -128,9 +156,10 @@ async def request_logging_middleware(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(_: Request, exc: Exception):
+    """Global exception handler - return 500 with error detail."""
     return JSONResponse(status_code=500, content={"detail": str(exc)})
 
-# Include API router
+# Include all API routers
 app.include_router(predict_router)
 app.include_router(users_router)
 app.include_router(predictions_router)
@@ -143,6 +172,7 @@ app.include_router(chatbot_router)
 # Root redirect to Swagger docs
 @app.get("/")
 def read_root():
+    """Redirect root to interactive API documentation."""
     return RedirectResponse(url="/docs")
 
 

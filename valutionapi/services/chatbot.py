@@ -65,6 +65,27 @@ def is_general_query(query: str) -> bool:
         "recommend",
         "compare",
         "explain",
+        "metric",
+        "metrics",
+        "indicator",
+        "indicators",
+        "ratio",
+        "roe",
+        "roa",
+        "eps",
+        "ebitda",
+        "p/e",
+        "pe",
+        "peg",
+        "beta",
+        "rsi",
+        "macd",
+        "dividend",
+        "yield",
+        "cash flow",
+        "debt to equity",
+        "current ratio",
+        "quick ratio",
     }
 
     if normalized in help_terms:
@@ -81,6 +102,51 @@ def is_general_query(query: str) -> bool:
         return True
 
     return False
+
+
+def is_finance_metrics_query(query: str) -> bool:
+    """Detect general finance-metric educational questions."""
+    normalized = query.strip().lower()
+    if not normalized:
+        return False
+
+    metric_terms = [
+        "metric",
+        "metrics",
+        "indicator",
+        "indicators",
+        "financial ratio",
+        "ratio",
+        "valuation ratio",
+        "roe",
+        "roa",
+        "eps",
+        "ebitda",
+        "p/e",
+        "pe ratio",
+        "peg",
+        "beta",
+        "rsi",
+        "macd",
+        "gross margin",
+        "operating margin",
+        "net margin",
+        "debt to equity",
+        "current ratio",
+        "quick ratio",
+        "free cash flow",
+        "book value",
+        "price to book",
+        "price to sales",
+        "dividend yield",
+        "return on invested capital",
+        "interest coverage",
+    ]
+    finance_context_terms = ["stock", "stocks", "investing", "valuation", "finance", "financial"]
+
+    has_metric_term = any(term in normalized for term in metric_terms)
+    has_finance_context = any(term in normalized for term in finance_context_terms)
+    return has_metric_term or has_finance_context
 
 
 class FinancialIntelligenceAgent:
@@ -156,6 +222,21 @@ class FinancialIntelligenceAgent:
                 ),
                 "next_best_action": "Try asking about a specific stock ticker (e.g., AAPL)",
                 "tools_used": [],
+                "recommendations": {"top_sectors": [], "suggested_tickers": []}
+            }
+
+        if intent["type"] in ["finance_education", "general"] and not tickers:
+            response = self._generate_general_finance_response(query, intent["type"])
+            next_action = (
+                "Ask about a ticker to apply this (e.g., 'How is AAPL's ROE?')."
+                if intent["type"] == "finance_education"
+                else "Ask a finance metric question or request a stock valuation (e.g., Analyze AAPL)."
+            )
+            return {
+                "response": response,
+                "next_best_action": next_action,
+                "tools_used": ["llm_finance_general"],
+                "errors": [],
                 "recommendations": {"top_sectors": [], "suggested_tickers": []}
             }
         
@@ -310,9 +391,55 @@ class FinancialIntelligenceAgent:
             return intent
         
         # No clear intent
+        if is_finance_metrics_query(query):
+            intent["type"] = "finance_education"
+            intent["confidence"] = 0.75
+            return intent
+
+        # No clear intent
         intent["type"] = "general"
         intent["confidence"] = 0.5
         return intent
+
+    def _generate_general_finance_response(self, query: str, intent_type: str) -> str:
+        """Handle non-valuation finance questions with LLM knowledge."""
+        prompt = f"""You are a finance assistant for a stock valuation app.
+
+User question: {query}
+Detected intent: {intent_type}
+
+Rules:
+1. If the question is about financial metrics/indicators, explain clearly:
+   - What it means
+   - Why it matters
+   - How to interpret high vs low values
+   - One practical caution
+2. Keep answer concise and practical.
+3. Do not fabricate real-time market values or claim live data access.
+4. If user asks something outside finance, politely steer back to finance and valuation help.
+5. Do not provide personalized investment advice.
+"""
+        try:
+            response = self.llm_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            text = (response.text or "").strip()
+            if text:
+                return text
+        except Exception as e:
+            print(f"WARNING: General finance LLM call failed: {e}")
+
+        if intent_type == "finance_education":
+            return (
+                "A financial metric helps measure company performance or valuation. "
+                "Tell me a specific one (e.g., ROE, EPS, P/E, EBITDA, Beta, RSI), "
+                "and I'll explain how to interpret it."
+            )
+        return (
+            "I can answer general finance questions (metrics and indicators) and run stock valuations. "
+            "Try: 'What does P/E ratio mean?' or 'Analyze AAPL'."
+        )
     
     def _extract_tickers(self, query: str) -> List[str]:
         """

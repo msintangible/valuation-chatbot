@@ -6,10 +6,16 @@ import yfinance as yf
 import uuid
 
 API_BASE_URL = "http://localhost:8001"
-if "user_id" not in st.session_state:
+if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
-USER_ID = st.session_state.user_id
+
+def get_user_id() -> str:
+    value = str(st.session_state.get("user_id", "")).strip()
+    if not value:
+        value = str(uuid.uuid4())
+        st.session_state.user_id = value
+    return value
 
 
 def show_api_error(message: str, error: Exception) -> None:
@@ -21,7 +27,7 @@ def show_api_error(message: str, error: Exception) -> None:
 def load_portfolios() -> None:
     with st.spinner("Loading portfolios..."):
         try:
-            response = requests.get(f"{API_BASE_URL}/predict/portfolio/{USER_ID}", timeout=30)
+            response = requests.get(f"{API_BASE_URL}/predict/portfolio/{get_user_id()}", timeout=30)
             response.raise_for_status()
             data = response.json()
 
@@ -39,7 +45,7 @@ def load_portfolios() -> None:
 def load_portfolio_details(name: str) -> dict | None:
     with st.spinner("Loading portfolio details..."):
         try:
-            response = requests.get(f"{API_BASE_URL}/predict/portfolio/{USER_ID}/{name}", timeout=30)
+            response = requests.get(f"{API_BASE_URL}/predict/portfolio/{get_user_id()}/{name}", timeout=30)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -63,6 +69,7 @@ def normalize_holdings(holdings: list) -> list[dict]:
 
 def render():
     st.title("📂 Portfolio Management")
+    st.caption(f"Current user: {get_user_id()}")
 
     if "portfolio_list" not in st.session_state:
         st.session_state.portfolio_list = []
@@ -80,7 +87,7 @@ def render():
                 try:
                     response = requests.post(
                         f"{API_BASE_URL}/predict/portfolio/create",
-                        json={"user_id": USER_ID, "name": new_portfolio_name.strip()},
+                        json={"user_id": get_user_id(), "name": new_portfolio_name.strip()},
                         timeout=30,
                     )
                     response.raise_for_status()
@@ -177,7 +184,7 @@ def render():
             with st.spinner("Adding ticker..."):
                 try:
                     response = requests.post(
-                        f"{API_BASE_URL}/predict/portfolio/{USER_ID}/{selected_portfolio}/add",
+                        f"{API_BASE_URL}/predict/portfolio/{get_user_id()}/{selected_portfolio}/add",
                         json={"ticker": ticker_input.strip().upper(), "shares": float(shares_input)},
                         timeout=30,
                     )
@@ -198,7 +205,7 @@ def render():
                     with st.spinner(f"Removing {ticker}..."):
                         try:
                             response = requests.delete(
-                                f"{API_BASE_URL}/predict/portfolio/{USER_ID}/{selected_portfolio}/{ticker}",
+                                f"{API_BASE_URL}/predict/portfolio/{get_user_id()}/{selected_portfolio}/{ticker}",
                                 timeout=30,
                             )
                             response.raise_for_status()
@@ -218,7 +225,7 @@ def render():
             with st.spinner("Deleting portfolio..."):
                 try:
                     response = requests.delete(
-                        f"{API_BASE_URL}/predict/portfolio/{USER_ID}/{selected_portfolio}",
+                        f"{API_BASE_URL}/predict/portfolio/{get_user_id()}/{selected_portfolio}",
                         timeout=30,
                     )
                     response.raise_for_status()

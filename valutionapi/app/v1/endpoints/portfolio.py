@@ -1,6 +1,8 @@
 """
 portfolio_router.py
 -------------------
+Portfolio prediction, CRUD, and holdings management endpoints.
+
 Endpoints:
     POST   /predict/portfolio                           - run predictions on a portfolio (auto-creates if needed)
     POST   /predict/portfolio/create                    - create a named portfolio
@@ -9,6 +11,16 @@ Endpoints:
     DELETE /predict/portfolio/{user_id}/{name}          - delete a portfolio
     POST   /predict/portfolio/{user_id}/{name}/add      - add a ticker to a portfolio
     DELETE /predict/portfolio/{user_id}/{name}/{ticker} - remove a ticker from a portfolio
+
+Portfolio Prediction Logic:
+    1. Fetch holdings (ticker + shares) from database
+    2. Get current price for each ticker via yfinance
+    3. Calculate holding values: shares × current_price
+    4. Compute weights: (holding_value / total_portfolio_value)
+    5. Run XGBoost predictions for each ticker
+    6. Aggregate results with weights
+    7. Compute portfolio risk score
+    8. Generate SHAP explanations
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -134,12 +146,13 @@ def predict_saved_portfolio(
     ticker_prices = {}
     for h in holdings:
         try:
-            ticker_prices[h["ticker"]] = yf.Ticker(h["ticker"]).fast_info["last_price"]
+            price = yf.Ticker(h["ticker"]).fast_info["last_price"]
+            ticker_prices[h["ticker"]] = price if price is not None else 0.0
         except Exception:
             ticker_prices[h["ticker"]] = 0.0
 
     # weight = (shares x price) / total portfolio value
-    holding_values = {h["ticker"]: h["shares"] * ticker_prices[h["ticker"]] for h in holdings}
+    holding_values = {h["ticker"]: (h["shares"] or 0.0) * (ticker_prices[h["ticker"]] or 0.0) for h in holdings}
     total_value = sum(holding_values.values()) or 1.0
     tickers = [h["ticker"] for h in holdings]
     weights = [round(holding_values[t] / total_value, 6) for t in tickers]

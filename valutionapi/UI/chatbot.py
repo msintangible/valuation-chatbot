@@ -12,10 +12,16 @@ import uuid
 
 # Configuration
 API_BASE_URL = "http://localhost:8001"
-if "user_id" not in st.session_state:
+if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
-USER_ID = st.session_state.user_id
+
+def get_user_id() -> str:
+    value = str(st.session_state.get("user_id", "")).strip()
+    if not value:
+        value = str(uuid.uuid4())
+        st.session_state.user_id = value
+    return value
 
 # ─────────────────────────────────────────────────────────────
 # Helper Functions for Response Rendering
@@ -391,7 +397,7 @@ def render():
         st.session_state.retry_prompt = None
 
     st.title("💰 Financial Intelligence Chatbot")
-    st.markdown("Ask about stock valuations, portfolio analysis, and get personalized recommendations.")
+    st.markdown("Ask about stock valuations, finance metrics/indicators, portfolio analysis, and personalized recommendations.")
     st.divider()
 
     for message in st.session_state.messages:
@@ -433,7 +439,7 @@ def render():
                     st.info("📡 Fetching market data...")
 
                 payload = {
-                    "user_id": USER_ID,
+                    "user_id": get_user_id(),
                     "query": api_query
                 }
 
@@ -550,7 +556,7 @@ def render():
                 unprocessed = msg["content"]
                 break
 
-    chat_input = st.chat_input("Ask about stocks, portfolios, or get recommendations...")
+    chat_input = st.chat_input("Ask about metrics (P/E, ROE), valuations, portfolios, or recommendations...")
 
     if st.session_state.retry_prompt:
         prompt = st.session_state.retry_prompt
@@ -609,6 +615,8 @@ def render():
                     st.rerun()
 
     with st.sidebar:
+        st.caption(f"Current user: {get_user_id()}")
+        st.divider()
         st.session_state.debug_mode = st.toggle("🐞 Debug Mode", value=st.session_state.debug_mode)
         st.divider()
 
@@ -616,6 +624,7 @@ def render():
         st.markdown("""
         This chatbot uses AI to help you with:
         - **Stock Valuations** - Check if stocks are under/over valued
+        - **Finance Metrics** - Understand indicators like P/E, ROE, EPS, EBITDA, RSI
         - **Explanations** - Understand why a stock is valued a certain way
         - **Portfolio Analysis** - Analyze your portfolio risk
         - **Recommendations** - Get personalized stock suggestions
@@ -626,6 +635,8 @@ def render():
         st.markdown("""
         Try asking:
         - "What's the valuation for AAPL?"
+        - "What does ROE tell me?"
+        - "How do I interpret P/E ratio?"
         - "Why is TSLA overvalued?"
         - "Suggest some stocks for me"
         - "Analyze my portfolio risk"
@@ -637,4 +648,4 @@ def render():
             st.rerun()
 
         st.caption(f"Connected to: {API_BASE_URL}")
-        st.caption(f"User ID: {USER_ID}")
+        st.caption(f"User ID: {get_user_id()}")

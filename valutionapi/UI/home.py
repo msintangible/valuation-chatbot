@@ -6,10 +6,16 @@ import uuid
 
 
 API_BASE_URL = "http://localhost:8001"
-if "user_id" not in st.session_state:
+if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
-USER_ID = st.session_state.user_id
+
+def get_user_id() -> str:
+    value = str(st.session_state.get("user_id", "")).strip()
+    if not value:
+        value = str(uuid.uuid4())
+        st.session_state.user_id = value
+    return value
 
 
 st.set_page_config(
@@ -44,6 +50,8 @@ def queue_chat_prompt(prompt: str):
 
 with st.sidebar:
     st.header("Navigation")
+    st.caption(f"Current user: {get_user_id()}")
+    st.divider()
     st.button("Home", on_click=go_home, use_container_width=True)
     st.button("Chatbot", on_click=go_chat, use_container_width=True)
     st.button("Portfolio Manager", on_click=go_portfolio, use_container_width=True)
@@ -74,7 +82,7 @@ if st.session_state.page == "home":
                 try:
                     response = requests.post(
                         f"{API_BASE_URL}/predict/",
-                        json={"ticker": cleaned_ticker, "user_id": USER_ID},
+                        json={"ticker": cleaned_ticker, "user_id": get_user_id()},
                         timeout=30,
                     )
                     response.raise_for_status()
