@@ -38,7 +38,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install flake8 pytest pytest-asyncio httpx black coverage
-        if [ -f valutionapi/requirements.txt ]; then pip install -r valutionapi/requirements.txt; fi
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
     # 🔥 ENHANCEMENT 3: Add formatting check with Black
     - name: Auto format code with Black
