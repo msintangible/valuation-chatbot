@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-
+from fastapi.middleware.cors import CORSMiddleware
 from db.database import SessionLocal, init_db
 from services.AI_model import load_valuation_model, load_model_columns
 from services.request_logs import log_request
@@ -49,6 +49,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or your streamlit URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def _infer_request_type(path: str) -> str:
     """Extract first path segment as request type for logging."""

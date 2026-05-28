@@ -5,7 +5,7 @@ import plotly.express as px
 import uuid
 
 
-API_BASE_URL = "http://localhost:8001"
+API_BASE_URL = "API_BASE_URL=https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net"
 if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
