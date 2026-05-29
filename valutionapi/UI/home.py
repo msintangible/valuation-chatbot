@@ -1,3 +1,4 @@
+import os
 import requests
 import streamlit as st
 import pandas as pd
@@ -5,9 +6,13 @@ import plotly.express as px
 import uuid
 
 
-API_BASE_URL = "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net"
-if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
-    st.session_state.user_id = str(uuid.uuid4())
+
+
+
+API_BASE_URL = os.getenv(
+    "API_BASE_URL",
+    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
+).rstrip("/")
 
 
 def get_user_id() -> str:
@@ -86,7 +91,10 @@ if st.session_state.page == "home":
                         timeout=30,
                     )
                     response.raise_for_status()
-                    result = response.json()
+                    try:
+                        result = response.json()
+                    except ValueError as e:
+                        raise ValueError(f"Invalid JSON response: {response.text}") from e
                     st.success(f"Analysis complete for {cleaned_ticker}.")
 
                     label = result.get("label", "N/A")
@@ -106,8 +114,12 @@ if st.session_state.page == "home":
 
                     if isinstance(graham_value, (int, float)):
                         st.write(f"**Graham Value:** ${graham_value:.2f}")
-                except Exception as e:
+                except requests.exceptions.RequestException as e:
                     st.error("Could not analyze this ticker right now.")
+                    with st.expander("Error details"):
+                        st.code(str(e), language="text")
+                except ValueError as e:
+                    st.error("API returned an invalid response.")
                     with st.expander("Error details"):
                         st.code(str(e), language="text")
 

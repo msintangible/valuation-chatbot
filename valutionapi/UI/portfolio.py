@@ -1,3 +1,4 @@
+import os
 import requests
 import streamlit as st
 import pandas as pd
@@ -5,7 +6,10 @@ import plotly.express as px
 import yfinance as yf
 import uuid
 
-API_BASE_URL = "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net"
+API_BASE_URL = os.getenv(
+    "API_BASE_URL",
+    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
+).rstrip("/")
 if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
@@ -24,12 +28,19 @@ def show_api_error(message: str, error: Exception) -> None:
         st.code(str(error), language="text")
 
 
+def parse_json_response(response: requests.Response):
+    try:
+        return response.json()
+    except ValueError as e:
+        raise ValueError(f"Invalid JSON response: {response.text}") from e
+
+
 def load_portfolios() -> None:
     with st.spinner("Loading portfolios..."):
         try:
             response = requests.get(f"{API_BASE_URL}/predict/portfolio/{get_user_id()}", timeout=30)
             response.raise_for_status()
-            data = response.json()
+            data = parse_json_response(response)
 
             if isinstance(data, list):
                 st.session_state.portfolio_list = data
@@ -37,7 +48,7 @@ def load_portfolios() -> None:
                 st.session_state.portfolio_list = data["portfolios"]
             else:
                 st.session_state.portfolio_list = []
-        except Exception as e:
+        except (requests.exceptions.RequestException, ValueError) as e:
             show_api_error("Could not load portfolios.", e)
             st.session_state.portfolio_list = []
 
@@ -47,8 +58,8 @@ def load_portfolio_details(name: str) -> dict | None:
         try:
             response = requests.get(f"{API_BASE_URL}/predict/portfolio/{get_user_id()}/{name}", timeout=30)
             response.raise_for_status()
-            return response.json()
-        except Exception as e:
+            return parse_json_response(response)
+        except (requests.exceptions.RequestException, ValueError) as e:
             show_api_error("Could not load portfolio details.", e)
             return None
 
@@ -93,7 +104,7 @@ def render():
                     response.raise_for_status()
                     st.success(f"Portfolio '{new_portfolio_name.strip()}' created.")
                     load_portfolios()
-                except Exception as e:
+                except requests.exceptions.RequestException as e:
                     show_api_error("Could not create portfolio.", e)
 
     # Select Portfolio
@@ -191,7 +202,7 @@ def render():
                     response.raise_for_status()
                     st.success(f"Added {ticker_input.strip().upper()} to {selected_portfolio}.")
                     st.rerun()
-                except Exception as e:
+                except requests.exceptions.RequestException as e:
                     show_api_error("Could not add ticker.", e)
 
     if normalized_holdings:
@@ -211,7 +222,7 @@ def render():
                             response.raise_for_status()
                             st.success(f"Removed {ticker} from {selected_portfolio}.")
                             st.rerun()
-                        except Exception as e:
+                        except requests.exceptions.RequestException as e:
                             show_api_error(f"Could not remove {ticker}.", e)
     else:
         st.caption("No holdings in this portfolio yet.")
@@ -232,7 +243,7 @@ def render():
                     st.success(f"Deleted portfolio '{selected_portfolio}'.")
                     load_portfolios()
                     st.rerun()
-                except Exception as e:
+                except requests.exceptions.RequestException as e:
                     show_api_error("Could not delete portfolio.", e)
 
     with action_col2:

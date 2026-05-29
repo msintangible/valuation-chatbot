@@ -4,6 +4,7 @@ Financial Intelligence Chatbot UI
 Simple Streamlit interface for the Financial Intelligence Agent
 """
 
+import os
 import streamlit as st
 import requests
 from typing import Dict, Any
@@ -11,7 +12,10 @@ import re
 import uuid
 
 # Configuration
-API_BASE_URL = "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net"
+API_BASE_URL = os.getenv(
+    "API_BASE_URL",
+    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
+).rstrip("/")
 if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
@@ -461,12 +465,18 @@ def render():
                         raise
 
                 if st.session_state.debug_mode:
+                    st.write("📥 Status:", response.status_code)
+                    st.write("📥 URL:", response.url)
                     st.write("📥 Raw response:", response.text)
 
                 with status_container.container():
                     st.info("🧠 Generating insights...")
 
-                data = response.json()
+                response.raise_for_status()
+                try:
+                    data = response.json()
+                except ValueError as e:
+                    raise ValueError(f"Invalid JSON response: {response.text}") from e
 
                 if st.session_state.debug_mode:
                     st.write("📥 Parsed:", data)
@@ -532,6 +542,18 @@ def render():
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": friendly_msg,
+                    "next_action": None
+                })
+
+            except ValueError as e:
+                handle_error(
+                    "response",
+                    "API returned an invalid response format.",
+                    e
+                )
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "API returned an invalid response.",
                     "next_action": None
                 })
 
