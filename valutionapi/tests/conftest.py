@@ -12,6 +12,7 @@ from app.v1.endpoints.predict import router as predict_router
 from app.v1.endpoints.predictions import router as predictions_router
 from app.v1.endpoints.shap import router as shap_router
 from app.v1.endpoints.suggestions import router as suggestions_router
+from app.v1.endpoints.chatbot_endpoint import router as chatbot_router
 from app.v1.endpoints.users import router as users_router
 from db.database import get_db
 from models.models import Base, Prediction, User
@@ -51,6 +52,7 @@ def app(db_session):
     api.include_router(shap_router)
     api.include_router(portfolio_router)
     api.include_router(suggestions_router)
+    api.include_router(chatbot_router)
     api.state.model = DummyModel()
     api.state.model_columns = ["PE_Ratio", "ROE"]
 

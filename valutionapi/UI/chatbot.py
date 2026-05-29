@@ -16,6 +16,8 @@ API_BASE_URL = os.getenv(
     "API_BASE_URL",
     "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
 ).rstrip("/")
+API_CHAT_PATH = os.getenv("API_CHAT_PATH", "/chat/")
+API_CHAT_URL = f"{API_BASE_URL}/{API_CHAT_PATH.lstrip('/')}"
 if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
     st.session_state.user_id = str(uuid.uuid4())
 
@@ -454,7 +456,7 @@ def render():
                 for attempt in range(2):
                     try:
                         response = requests.post(
-                            f"{API_BASE_URL}/chat/",
+                            API_CHAT_URL,
                             json=payload,
                             timeout=60
                         )
