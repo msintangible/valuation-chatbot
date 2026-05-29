@@ -1,0 +1,39 @@
+name: Deploy Streamlit App
+
+on:
+  push:
+    branches:
+      - main
+      - feature-devops
+
+jobs:
+  build-and-deploy-streamlit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Login to Streamlit ACR
+      uses: docker/login-action@v3
+      with:
+        registry: streamlitap.azurecr.io
+        username: ${{ secrets.STREAMLIT_ACR_USERNAME }}
+        password: ${{ secrets.STREAMLIT_ACR_PASSWORD }}
+
+    - name: Build Streamlit Image
+      run: |
+        docker build \
+          -t streamlitap.azurecr.io/valuation-streamlit:latest \
+          -f valutionapi/Dockerfile .
+
+    - name: Push Streamlit Image
+      run: |
+        docker push streamlitap.azurecr.io/valuation-streamlit:latest
+
+    - name: Deploy Streamlit App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: intrinsicai
+        publish-profile: ${{ secrets.INTRINSICAI_PUBLISH_PROFILE }}
+        images: streamlitap.azurecr.io/valuation-streamlit:latest
