@@ -21,7 +21,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/valution-api:latest -f valutionapi/Dockerfile.api .
+         docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/valution-api:latest .
 
     - name: Push Docker image
       run: |
