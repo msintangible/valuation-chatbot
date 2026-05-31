@@ -12,6 +12,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from models.models import Prediction, User
+
 from services.shap_explainer import generate_shap_explanation
 
 # Maps yfinance sector strings to the sector names used in training
@@ -256,7 +257,12 @@ def run_model(model, aligned, label_map: dict) -> tuple[int, str, float]:
     Run the XGBoost model and return (predicted_label, label_text, confidence).
     Raises ValueError if the predicted label is not in label_map.
     """
+
     try:
+        if not hasattr(model, "n_classes_"):
+            n_classes = len(label_map)
+            model.n_classes_ = n_classes
+            model.classes_ = np.arange(n_classes)
         predicted_label = int(model.predict(aligned)[0])
         probabilities = model.predict_proba(aligned)[0]
     except Exception as e:
