@@ -4,7 +4,10 @@ Loads the trained XGBoost model and feature columns from disk.
 Called once at startup so the model stays in memory for the entire session.
 """
 
+import json
 import pickle
+
+import numpy as np
 from core.setting import settings
 
 
@@ -16,6 +19,8 @@ def load_valuation_model():
     try:
         model = XGBClassifier()
         model.load_model(model_file)
+        print(type(model))
+        print(model)
         print("Model loaded successfully.")
         return model
     except FileNotFoundError as e:
