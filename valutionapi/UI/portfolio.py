@@ -4,22 +4,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import yfinance as yf
-import uuid
+from auth.session import get_user_id, require_auth
 
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
-    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
+    "http://127.0.0.1:8001",
 ).rstrip("/")
-if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
-    st.session_state.user_id = str(uuid.uuid4())
-
-
-def get_user_id() -> str:
-    value = str(st.session_state.get("user_id", "")).strip()
-    if not value:
-        value = str(uuid.uuid4())
-        st.session_state.user_id = value
-    return value
 
 
 def show_api_error(message: str, error: Exception) -> None:
@@ -79,8 +69,10 @@ def normalize_holdings(holdings: list) -> list[dict]:
 
 
 def render():
+    require_auth()
+
     st.title("📂 Portfolio Management")
-    st.caption(f"Current user: {get_user_id()}")
+    st.caption(f"Current user ID: {get_user_id()}")
 
     if "portfolio_list" not in st.session_state:
         st.session_state.portfolio_list = []
@@ -248,8 +240,7 @@ def render():
 
     with action_col2:
         if st.button("Analyze Portfolio", type="primary", use_container_width=True):
-            st.session_state.page = "chat"
             st.session_state.messages.append(
                 {"role": "user", "content": f"Analyze portfolio {selected_portfolio}"}
             )
-            st.rerun()
+            st.switch_page("Chatbot")

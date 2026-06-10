@@ -18,7 +18,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from services.predict import fetch_stock_features
 
 # ── Load model columns ────────────────────────────────────────────────────────
-with open("../../../model_columns.pkl", "rb") as f:
+model_columns_path = PROJECT_ROOT / "model_columns.pkl"
+with open(model_columns_path, "rb") as f:
     model_columns = pickle.load(f)
 
 print(f"Model expects {len(model_columns)} columns:")

@@ -3,8 +3,13 @@ def test_full_portfolio_lifecycle(client):
     portfolio_name = "growth"
 
     create_user = client.post(
-        "/users/",
-        json={"user_id": user_id, "username": "workflow", "channel_id": "api"},
+        "/auth/register",
+        json={
+            "user_id": user_id,
+            "username": "workflow",
+            "email": "workflow@example.com",
+            "password": "correct-password",
+        },
     )
     assert create_user.status_code == 200
 

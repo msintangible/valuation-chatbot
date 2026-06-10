@@ -12,7 +12,7 @@ Relationships:
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint, Text, JSON, Boolean, text
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -23,9 +23,14 @@ class User(Base):
 
     user_id = Column(String, primary_key=True, index=True)
     username = Column(String, nullable=True)
+    email = Column(String, unique=True, nullable=True)
+    password_hash = Column(String, nullable=True)
+    role = Column(String, nullable=False, default="user", server_default=text("'user'"))
+    is_active = Column(Boolean, nullable=False, default=True, server_default=text("1"))
     channel_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
 
     portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
     predictions = relationship("Prediction", back_populates="user", cascade="all, delete-orphan")

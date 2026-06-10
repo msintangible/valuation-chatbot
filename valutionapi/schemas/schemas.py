@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator,EmailStr
 from typing import Any, Dict, Optional, List
 
 # Request schemas
@@ -6,9 +6,19 @@ from typing import Any, Dict, Optional, List
 
 class UserRequest(BaseModel):
     user_id: str
-    username: Optional[str] = None
-    channel_id: Optional[str] = None
+    username: str | None = None
+    channel_id: str | None = None
 
+
+class RegisterRequest(BaseModel):
+    username: str | None = None
+    email: EmailStr
+    password: str = Field(min_length=6)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6)
 
 class PredictionRequest(BaseModel):
     user_id: str

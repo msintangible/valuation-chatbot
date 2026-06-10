@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from db.database import SessionLocal, init_db
 from services.AI_model import load_valuation_model, load_model_columns
 from services.request_logs import log_request
+from app.v1.endpoints.auth import router as auth_router
 from app.v1.endpoints.predict import router as predict_router
 from app.v1.endpoints.users import router as users_router
 from app.v1.endpoints.predictions import router as predictions_router
@@ -21,7 +22,7 @@ from app.v1.endpoints.predictions import router as predictions_router
 from app.v1.endpoints.shap import router as shap_router
 from app.v1.endpoints.portfolio import router as portfolio_router
 from app.v1.endpoints.suggestions import router as suggestions_router
-from app.v1.endpoints.chatbot_endpoint import router as chatbot_router
+from app.v1.endpoints.chatbot import router as chatbot_router
 
 
 @asynccontextmanager
@@ -172,6 +173,7 @@ async def global_exception_handler(_: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 # Include all API routers
+app.include_router(auth_router)
 app.include_router(predict_router)
 app.include_router(users_router)
 app.include_router(predictions_router)

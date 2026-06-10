@@ -1,5 +1,5 @@
 """
-chatbot_endpoint.py
+chatbot.py
 -------------------
 FastAPI endpoint for AI chatbot agent - pure tool orchestration
 """
@@ -10,8 +10,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from db.database import get_db
+from core.security import get_current_registered_user
+from models.models import User
 from services.chatbot import FinancialIntelligenceAgent
-from services.users import upsert_user
 
 router = APIRouter(prefix="/chat", tags=["Chatbot"])
 
@@ -30,7 +31,11 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest, db: Session = Depends(get_db)):
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_registered_user),
+):
     """
     Chat with the AI financial intelligence agent.
     
@@ -50,7 +55,9 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     All intelligence comes from backend services - zero custom logic.
     """
     try:
-        upsert_user(db, user_id=request.user_id)
+        if request.user_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Token does not match requested user")
+
         agent = FinancialIntelligenceAgent(db=db)
         result = await agent.process_query(
             user_id=request.user_id,
@@ -65,6 +72,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
             recommendations=result["recommendations"]
         )
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 

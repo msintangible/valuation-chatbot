@@ -1,6 +1,11 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from pydantic import Field
 import os
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -24,11 +29,16 @@ class Settings(BaseSettings):
     # LLM settings
     gemini_api_key: str = Field(default="", env="GEMINI_API_KEY")
 
+    # Auth settings
+    jwt_secret_key: str = Field(default="", env="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=60, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+
     # Other settings
     debug: bool = Field(default=False, env="DEBUG")
 
     class Config:
-        env_file = ".env"
+        env_file = str(BASE_DIR / ".env")
         extra = "ignore"
 
 

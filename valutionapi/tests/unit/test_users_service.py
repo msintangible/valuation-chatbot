@@ -2,7 +2,18 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from models.models import User
-from services.users import get_user, upsert_user
+from services.users import get_user, upsert_user, get_all_users
+
+
+def test_get_all_users():
+    db = MagicMock()
+    users_list = [User(user_id="1"), User(user_id="2")]
+    db.query.return_value.all.return_value = users_list
+
+    result = get_all_users(db)
+    assert len(result) == 2
+    assert result[0].user_id == "1"
+    assert result[1].user_id == "2"
 
 
 def test_upsert_user_creates_new_user():

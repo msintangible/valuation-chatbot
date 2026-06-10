@@ -9,25 +9,15 @@ import streamlit as st
 import requests
 from typing import Dict, Any
 import re
-import uuid
+from auth.session import get_user_id, require_auth
 
 # Configuration
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
-    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
+    "http://127.0.0.1:8001",
 ).rstrip("/")
 API_CHAT_PATH = os.getenv("API_CHAT_PATH", "/chat/")
 API_CHAT_URL = f"{API_BASE_URL}/{API_CHAT_PATH.lstrip('/')}"
-if "user_id" not in st.session_state or not str(st.session_state.user_id).strip():
-    st.session_state.user_id = str(uuid.uuid4())
-
-
-def get_user_id() -> str:
-    value = str(st.session_state.get("user_id", "")).strip()
-    if not value:
-        value = str(uuid.uuid4())
-        st.session_state.user_id = value
-    return value
 
 # ─────────────────────────────────────────────────────────────
 # Helper Functions for Response Rendering
@@ -387,6 +377,8 @@ def render_response(data: Dict[str, Any], tickers: list[str] = None, show_quick_
 
 def render():
     """Render the chatbot page UI."""
+    require_auth()
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "debug_mode" not in st.session_state:
@@ -639,7 +631,7 @@ def render():
                     st.rerun()
 
     with st.sidebar:
-        st.caption(f"Current user: {get_user_id()}")
+        st.caption(f"Current user ID: {get_user_id()}")
         st.divider()
         st.session_state.debug_mode = st.toggle("🐞 Debug Mode", value=st.session_state.debug_mode)
         st.divider()
