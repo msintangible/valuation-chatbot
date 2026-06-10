@@ -37,9 +37,11 @@ class Settings(BaseSettings):
     # Other settings
     debug: bool = Field(default=False, env="DEBUG")
 
-    class Config:
-        env_file = str(BASE_DIR / ".env")
-        extra = "ignore"
+    model_config = {
+        "env_file": str(BASE_DIR / ".env"),
+        "extra": "ignore",
+        "protected_namespaces": ("settings_",),
+    }
 
 
 # Create a global settings instance
