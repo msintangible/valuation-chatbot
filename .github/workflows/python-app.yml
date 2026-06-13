@@ -66,6 +66,7 @@ jobs:
       working-directory: valutionapi
       env:
         PYTHONPATH: .
+        JWT_SECRET_KEY: test-secret-key
       run: |
         coverage run -m pytest --junitxml=report.xml -v
         coverage report -m
