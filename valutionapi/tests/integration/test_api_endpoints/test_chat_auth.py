@@ -9,15 +9,16 @@ def test_chat_requires_authentication(client):
 
 
 def test_chat_requires_registered_user_token_to_match_request_user(client):
-    client.post(
+    reg = client.post(
         "/auth/register",
         json={
-            "user_id": "chat-user",
             "username": "Chat",
             "email": "chat@example.com",
             "password": "correct-password",
         },
     )
+    user_id = reg.json()["user_id"]
+    
     login = client.post(
         "/auth/login",
         json={"email": "chat@example.com", "password": "correct-password"},
@@ -35,15 +36,16 @@ def test_chat_requires_registered_user_token_to_match_request_user(client):
 
 
 def test_registered_user_can_use_chat(client):
-    client.post(
+    reg = client.post(
         "/auth/register",
         json={
-            "user_id": "chat-allowed",
             "username": "Allowed",
             "email": "allowed@example.com",
             "password": "correct-password",
         },
     )
+    user_id = reg.json()["user_id"]
+    
     login = client.post(
         "/auth/login",
         json={"email": "allowed@example.com", "password": "correct-password"},
@@ -53,7 +55,7 @@ def test_registered_user_can_use_chat(client):
     response = client.post(
         "/chat/",
         headers={"Authorization": f"Bearer {token}"},
-        json={"user_id": "chat-allowed", "query": "hello"},
+        json={"user_id": user_id, "query": "hello"},
     )
 
     assert response.status_code == 200

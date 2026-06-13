@@ -23,7 +23,6 @@ def test_chat_missing_payload_returns_422(client):
     client.post(
         "/auth/register",
         json={
-            "user_id": "route-user",
             "username": "Route",
             "email": "route@example.com",
             "password": "correct-password",

@@ -1,17 +1,16 @@
 def test_full_portfolio_lifecycle(client):
-    user_id = "wf-user"
     portfolio_name = "growth"
 
     create_user = client.post(
         "/auth/register",
         json={
-            "user_id": user_id,
             "username": "workflow",
             "email": "workflow@example.com",
             "password": "correct-password",
         },
     )
     assert create_user.status_code == 200
+    user_id = create_user.json()["user_id"]
 
     create_portfolio = client.post(
         "/predict/portfolio/create",

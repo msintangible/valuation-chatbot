@@ -2,7 +2,6 @@ def test_register_creates_user(client):
     response = client.post(
         "/auth/register",
         json={
-            "user_id": "auth-user",
             "username": "Alice",
             "email": "alice@example.com",
             "password": "correct-password",
@@ -10,14 +9,15 @@ def test_register_creates_user(client):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"message": "User created", "user_id": "auth-user"}
+    data = response.json()
+    assert data["message"] == "User created"
+    assert "user_id" in data
 
 
 def test_login_returns_bearer_token_for_registered_user(client):
     client.post(
         "/auth/register",
         json={
-            "user_id": "auth-login",
             "username": "Bob",
             "email": "bob@example.com",
             "password": "correct-password",
@@ -39,7 +39,6 @@ def test_login_rejects_wrong_password(client):
     client.post(
         "/auth/register",
         json={
-            "user_id": "auth-bad-password",
             "username": "Carol",
             "email": "carol@example.com",
             "password": "correct-password",
