@@ -1,5 +1,10 @@
-import datetime as dt
+import os
 
+# Set environment variables BEFORE importing settings
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-not-for-production"
+os.environ["GEMINI_API_KEY"] = "test-gemini-key"
+
+import datetime as dt
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -20,11 +25,24 @@ from db.database import get_db
 from models.models import Base, Prediction, User
 
 
+from unittest.mock import MagicMock
+
+def pytest_configure():
+    """Pytest hook to perform early configuration."""
+    # Ensure environment variables are set (already done at top level, but following user suggestion)
+    os.environ["JWT_SECRET_KEY"] = "test-secret-key-not-for-production"
+    os.environ["GEMINI_API_KEY"] = "test-gemini-key"
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Ensure environment variables required for tests are set."""
-    if not settings.jwt_secret_key:
-        settings.jwt_secret_key = "test-secret-key-not-for-production"
+    # Mock google.genai.Client to avoid real API initialization/calls
+    try:
+        import google.genai
+        google.genai.Client = MagicMock()
+    except ImportError:
+        pass
+
     yield
 
 
