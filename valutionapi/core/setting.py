@@ -47,5 +47,3 @@ class Settings(BaseSettings):
 # Create a global settings instance
 settings = Settings()
 
-if not settings.jwt_secret_key:
-    raise RuntimeError("JWT_SECRET_KEY must be set in environment")
