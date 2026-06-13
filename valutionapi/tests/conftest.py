@@ -15,8 +15,17 @@ from app.v1.endpoints.suggestions import router as suggestions_router
 from app.v1.endpoints.chatbot import router as chatbot_router
 from app.v1.endpoints.users import router as users_router
 from app.v1.endpoints.auth import router as auth_router
+from core.setting import settings
 from db.database import get_db
 from models.models import Base, Prediction, User
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_env():
+    """Ensure environment variables required for tests are set."""
+    if not settings.jwt_secret_key:
+        settings.jwt_secret_key = "test-secret-key-not-for-production"
+    yield
 
 
 class DummyModel:
