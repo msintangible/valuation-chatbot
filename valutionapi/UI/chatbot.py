@@ -14,7 +14,7 @@ from auth.session import get_user_id, require_auth
 # Configuration
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
-    "http://127.0.0.1:8001",
+    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
 ).rstrip("/")
 API_CHAT_PATH = os.getenv("API_CHAT_PATH", "/chat/")
 API_CHAT_URL = f"{API_BASE_URL}/{API_CHAT_PATH.lstrip('/')}"
@@ -235,7 +235,7 @@ def handle_error(error_type: str, error_msg: str, original_error: Exception = No
         st.warning("""
         **Why this happened:**
         - The API server might be down or not responding
-        - Check if the server is running on http://localhost:8001
+        - Check if the API service is running and reachable
         """)
     elif error_type == "validation":
         st.warning("""

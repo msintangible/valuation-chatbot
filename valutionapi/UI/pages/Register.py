@@ -9,7 +9,7 @@ from auth.session import is_authenticated
 
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
-    "http://127.0.0.1:8001",
+    "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net",
 ).rstrip("/")
 
 

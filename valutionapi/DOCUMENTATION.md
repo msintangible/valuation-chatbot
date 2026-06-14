@@ -123,6 +123,14 @@ Classify any stock ticker as:
 
 Uses the **Graham Intrinsic Value** formula and XGBoost classification.
 
+### 🔐 Secure Authentication & Authorization
+
+JWT-based security system for user data protection:
+- **User Registration** — Create accounts with email and password
+- **Secure Login** — Authenticate and receive JWT access tokens
+- **Role-Based Access** — Admin-only access to user management and system logs
+- **Protected Endpoints** — Ensure user data and portfolios are only accessible to their owners
+
 ### 📊 SHAP Explainability
 
 Every prediction includes a detailed breakdown of which financial metrics influenced the decision:
@@ -1929,17 +1937,22 @@ The models layer defines the database schema using SQLAlchemy ORM. All data is p
 
 ### 1. **User** Table
 
-Stores user profiles and metadata.
+Stores user profiles and metadata, including authentication details.
 
 ```python
 class User(Base):
     __tablename__ = "users"
     
-    user_id    = Column(String, primary_key=True, index=True)
-    username   = Column(String, nullable=True)
-    channel_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_seen  = Column(DateTime, onupdate=datetime.utcnow)
+    user_id       = Column(String, primary_key=True, index=True)
+    username      = Column(String, nullable=True)
+    email         = Column(String, unique=True, nullable=True)
+    password_hash = Column(String, nullable=True)
+    role          = Column(String, default="user")
+    is_active     = Column(Boolean, default=True)
+    channel_id    = Column(String, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)
+    last_seen     = Column(DateTime, onupdate=datetime.utcnow)
+    last_login    = Column(DateTime, nullable=True)
     
     # Relationships
     portfolios  = relationship("Portfolio", back_populates="user")
@@ -1953,9 +1966,14 @@ class User(Base):
 |-------|------|-------------|
 | `user_id` | PK String | Unique user identifier |
 | `username` | String | Display name |
+| `email` | String | User email (unique) |
+| `password_hash` | String | Hashed password |
+| `role` | String | User role ("user" or "admin") |
+| `is_active` | Boolean | Account status |
 | `channel_id` | String | Chat channel ID (Discord, Slack) |
 | `created_at` | DateTime | Account creation time |
 | `last_seen` | DateTime | Last activity |
+| `last_login` | DateTime | Last successful login |
 
 **Example:**
 ```json

@@ -23,9 +23,10 @@ Located in: `app/v1/endpoints/`
 
 | File | Routers | Purpose |
 |------|---------|---------|
+| `auth.py` | `/auth/` | **NEW:** Registration and Login (JWT) |
 | `predict.py` | `/predict/` | Single stock prediction |
 | `shap.py` | `/explain/` | Prediction with SHAP explanation |
-| `users.py` | `/users/` | User CRUD operations |
+| `users.py` | `/users/` | User CRUD operations (Admin protected) |
 | `predictions.py` | `/predictions/` | Prediction history queries |
 | `portfolio.py` | `/predict/portfolio/` | Multi-stock portfolio analysis |
 | `suggestions.py` | `/suggestions/` | Stock recommendations |
@@ -320,7 +321,20 @@ portfolio.assessed_at = datetime.utcnow()
 
 **Why:** Risk assessment is expensive (calls model 5-10 times per portfolio). Cache avoids recomputation.
 
-### 6. **Tool Registry Pattern for Agent**
+### 6. **JWT Authentication & Role-Based Access**
+
+The system uses `jose` for JWT and `passlib` for password hashing (PBKDF2/Bcrypt).
+
+**Flow:**
+1. User registers via `/auth/register` (password is hashed before storage).
+2. User logs in via `/auth/login` and receives a JWT token.
+3. Subsequent requests include the token in the `Authorization: Bearer <token>` header.
+4. `get_current_registered_user` dependency validates the token and retrieves the user.
+5. `require_admin` dependency ensures only users with the "admin" role can access sensitive endpoints (like `/users/`).
+
+**Why:** Decouples authentication from business logic and provides a standardized, stateless way to secure user data.
+
+### 7. **Tool Registry Pattern for Agent**
 
 `services/agent_tools.py` centralizes tool definitions (`endpoint`, `method`, `schemas`, `when_to_use`) and executes calls through one `ToolExecutor`.
 

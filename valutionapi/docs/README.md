@@ -128,6 +128,14 @@ Classify any stock ticker as:
 
 Uses the **Graham Intrinsic Value** formula and XGBoost classification.
 
+### 🔐 Secure Authentication & Authorization
+
+JWT-based security system for user data protection:
+- **User Registration** — Create accounts with email and password
+- **Secure Login** — Authenticate and receive JWT access tokens
+- **Role-Based Access** — Admin-only access to user management and system logs
+- **Protected Endpoints** — Ensure user data and portfolios are only accessible to their owners
+
 ### 📊 SHAP Explainability
 
 Every prediction includes a detailed breakdown of which financial metrics influenced the decision:
@@ -185,11 +193,12 @@ Track all predictions per user:
 └────────────────┬────────────────────────────┘
                  │
         ┌────────▼─────────┐
-        │   FastAPI Routers │  (7 endpoint modules)
+        │   FastAPI Routers │  (8 endpoint modules)
+        │ - /auth          │  (NEW: Registration & Login)
         │ - /predict       │
         │ - /explain       │
         │ - /predictions   │
-        │ - /users         │
+        │ - /users         │  (Admin protected)
         │ - /portfolio     │
         │ - /suggestions   │
         │ - /chat          │
@@ -197,6 +206,7 @@ Track all predictions per user:
                  │
         ┌────────▼──────────┐
         │  Services Layer    │  (Business Logic)
+        │ - users.py        │  (Auth & User logic)
         │ - predict.py      │
         │ - AI_model.py     │
         │ - portfolio.py    │
@@ -209,7 +219,8 @@ Track all predictions per user:
         ┌────────▼───────────┐
         │  Models & Database  │
         │ - SQLAlchemy ORM   │
-        │ - User, Portfolio  │
+        │ - User (with Auth) │
+        │ - Portfolio        │
         │ - Prediction,      │
         │   PortfolioHolding │
         └────────┬───────────┘
@@ -224,23 +235,25 @@ Track all predictions per user:
 
 ## Endpoints at a Glance
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `POST` | `/predict/` | Single stock prediction |
-| `POST` | `/explain/` | Prediction with SHAP explanation |
-| `POST` | `/users/` | Create or update user |
-| `GET` | `/users/{user_id}` | Get user info |
-| `GET` | `/predictions/user/{user_id}` | Prediction history for user |
-| `GET` | `/predictions/ticker/{ticker}` | All predictions for a ticker |
-| `POST` | `/predict/portfolio` | Multi-stock portfolio prediction |
-| `POST` | `/predict/portfolio/{user_id}/{name}/predict` | Predict risk for a saved portfolio using DB holdings |
-| `POST` | `/predict/portfolio/create` | Create named portfolio |
-| `GET` | `/predict/portfolio/{user_id}` | List user portfolios |
-| `POST` | `/predict/portfolio/{user_id}/{name}/add` | Add holding to portfolio |
-| `GET` | `/suggestions/{user_id}` | Get stock recommendations |
-| `GET` | `/portfolio_suggestions/{user_id}/{portfolio_name}` | Suggestions for portfolio |
-| `POST` | `/chat/` | AI agent endpoint (intent routing + tool orchestration) |
-| `GET` | `/chat/tools` | List all tools the AI agent can call |
+| Method | Endpoint | Purpose | Auth Required |
+|--------|----------|---------|---------------|
+| `POST` | `/auth/register` | Create a new account | No |
+| `POST` | `/auth/login` | Login and get JWT token | No |
+| `POST` | `/predict/` | Single stock prediction | Optional |
+| `POST` | `/explain/` | Prediction with SHAP explanation | Optional |
+| `POST` | `/users/` | Create or update user | Admin Only |
+| `GET` | `/users/{user_id}` | Get user info | Admin Only |
+| `GET` | `/predictions/user/{user_id}` | Prediction history for user | Yes |
+| `GET` | `/predictions/ticker/{ticker}` | All predictions for a ticker | Yes |
+| `POST` | `/predict/portfolio` | Multi-stock portfolio prediction | Yes |
+| `POST` | `/predict/portfolio/{user_id}/{name}/predict` | Predict risk for a saved portfolio | Yes |
+| `POST` | `/predict/portfolio/create` | Create named portfolio | Yes |
+| `GET` | `/predict/portfolio/{user_id}` | List user portfolios | Yes |
+| `POST` | `/predict/portfolio/{user_id}/{name}/add` | Add holding to portfolio | Yes |
+| `GET` | `/suggestions/{user_id}` | Get stock recommendations | Yes |
+| `GET` | `/portfolio_suggestions/{user_id}/{portfolio_name}` | Suggestions for portfolio | Yes |
+| `POST` | `/chat/` | AI agent endpoint | Yes |
+| `GET` | `/chat/tools` | List all tools for AI agent | Yes |
 
 ## Configuration
 

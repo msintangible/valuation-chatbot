@@ -13,6 +13,76 @@ All responses are JSON. Errors include a `detail` field explaining the issue.
 
 ---
 
+## Authentication Endpoints
+
+### POST /auth/register
+
+**User Registration**
+
+Create a new user account with email and password.
+
+**Request**
+
+```json
+{
+  "username": "alice_smith",
+  "email": "alice@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response (200)**
+
+```json
+{
+  "message": "User created",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+---
+
+### POST /auth/login
+
+**User Login**
+
+Authenticate and receive a JWT access token.
+
+**Request**
+
+```json
+{
+  "email": "alice@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response (200)**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "role": "user"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `access_token` | string | JWT token for subsequent authenticated requests |
+| `token_type` | string | Always "bearer" |
+| `role` | string | User role ("user" or "admin") |
+
+**Errors**
+
+| Status | Reason |
+|--------|--------|
+| 401 | Incorrect password |
+| 404 | Email not registered |
+| 409 | Password not set for this account |
+
+---
+
 ## Prediction Endpoints
 
 ### POST /predict/
@@ -123,6 +193,8 @@ Same as `/predict/` but includes detailed SHAP feature importance.
 ---
 
 ## User Management Endpoints
+
+> **Note:** These endpoints require **Admin privileges**. You must provide a JWT token for an admin user in the `Authorization` header.
 
 ### POST /users/
 

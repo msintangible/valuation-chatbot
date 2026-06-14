@@ -31,7 +31,14 @@ Three detection functions classify incoming queries:
 
 **Metrics Detected:** ROE, ROA, EPS, P/E, P/B, Beta, RSI, MACD, dividend yield, debt-to-equity, current ratio, quick ratio, price-to-sales, EBITDA, cash flow, and more.
 
-### 2. Routing Paths
+### 2. Authentication Layer (`app/v1/endpoints/auth.py`)
+
+Handles user lifecycle and security:
+- **Registration**: Create accounts with email/password.
+- **Login**: JWT-based authentication.
+- **Role-Based Access**: Distinguishes between standard users and administrators.
+
+### 3. Routing Paths
 
 | Query Type | Detection | Handler | Output |
 |------------|-----------|---------|--------|
@@ -39,28 +46,21 @@ Three detection functions classify incoming queries:
 | Finance Education | "What is ROE?" (no ticker) | Gemini LLM (`gemini-2.5-flash`) | Explanation: meaning, why it matters, how to interpret, cautions |
 | Valuation | "Is AAPL undervalued?" | FastAPI ML API | Prediction + SHAP explanations |
 
-### 3. Session Management
+### 4. Session & User Management
 
-Each Streamlit session gets a unique UUID:
+The system supports both anonymous and registered sessions:
 
-```python
-def get_user_id():
-    if "user_id" not in st.session_state:
-        st.session_state["user_id"] = str(uuid.uuid4())
-    return st.session_state["user_id"]
-```
+- **Anonymous Session**: Uses a unique UUID stored in `st.session_state`.
+- **Registered User**: Uses JWT tokens for persistent access across devices and sessions.
+- **Auth Flows**: UI includes Login and Register pages for transitioning from anonymous to registered status.
 
-- **New session** → Fresh UUID
-- **Same session** → Persistent UUID (enables portfolio access)
-- **Displayed** → Read-only caption in sidebar (for debugging)
-
-### 4. Request Logging Middleware
+### 5. Request Logging Middleware
 
 All HTTP requests logged to database with:
 - user_id, request_type, ticker, status, error_detail, duration_ms
 - Centralized tracking across all endpoints
 
-### 5. Database Schema
+### 6. Database Schema
 
 ```
 Prediction
@@ -79,7 +79,7 @@ RequestLog
 └── timestamp
 ```
 
-### 6. Model Loading
+### 7. Model Loading
 
 At startup:
 - Load XGBoost model from `valuation_model_xgb.json`
@@ -93,11 +93,13 @@ At startup:
 ```
 app/main.py                          # FastAPI app, middleware, routers
 app/v1/endpoints/
+├── auth.py                          # NEW: Registration & Login
 ├── chatbot_endpoint.py              # Chatbot POST /chat/
 ├── predict.py                       # Single stock predictions
 ├── portfolio.py                     # Portfolio CRUD + predictions
 ├── suggestions.py                   # Recommendations
 ├── shap.py                         # SHAP explanations
+├── users.py                         # Admin-only user management
 └── predictions.py                   # History queries
 
 services/
@@ -109,7 +111,12 @@ services/
 ├── request_logs.py                 # Logging
 ├── AI_model.py                     # Model loading
 ├── stock_fecther.py                # yfinance wrapper
+├── users.py                         # Auth & User business logic
 └── crud_portfolio.py               # Database operations
+
+core/
+├── security.py                      # JWT & Password hashing
+└── setting.py                       # App configuration
 
 db/database.py                       # SQLAlchemy setup
 schemas/schemas.py                  # Pydantic models
@@ -117,7 +124,10 @@ schemas/schemas.py                  # Pydantic models
 UI/
 ├── chatbot.py                      # Streamlit chatbot interface
 ├── home.py                         # Quick prediction page
-└── portfolio.py                    # Portfolio manager
+├── portfolio.py                    # Portfolio manager
+└── pages/
+    ├── Login.py                    # Login page
+    └── Register.py                 # Registration page
 
 tests/unit/test_chatbot_intent.py   # Intent detection tests
 ```
@@ -160,7 +170,7 @@ User: "Analyze my portfolio"
 
 1. **Intent Routing**: Flexibility for new query types without changing UI/API
 2. **LLM for Education, ML for Valuation**: Prevents hallucination of financial data
-3. **Per-Session UUID**: Simple UX, transparent to user, upgradeable to login later
+3. **JWT Authentication**: Secure, stateless access control for user data
 4. **Middleware Logging**: Centralized, uniform tracking across all endpoints
 5. **SHAP Explainability**: Trust-building through feature attribution
 
@@ -169,15 +179,14 @@ User: "Analyze my portfolio"
 ## Environment Variables
 
 - `GEMINI_API_KEY` - Google Gemini API key (required)
+- `JWT_SECRET_KEY` - Secret key for JWT generation (required)
 - `UVICORN_RELOAD` - Set to "1" for auto-reload during development
 
 ---
 
 ## Future Enhancements
 
-- User authentication (persistent login)
 - Real-time portfolio updates (WebSocket)
 - Model retraining pipeline
-- Rate limiting for LLM calls
 - Caching layer (Redis)
 - A/B testing for intent routing
