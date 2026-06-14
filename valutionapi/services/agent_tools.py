@@ -6,6 +6,7 @@ Tool Registry & Execution Layer for Financial Intelligence Agent
 Auto-discovers FastAPI endpoints and converts them into callable agent tools.
 """
 
+import os
 import httpx
 from typing import Dict, Any, List, Optional
 
@@ -13,7 +14,7 @@ from typing import Dict, Any, List, Optional
 class ToolRegistry:
     """Registry of all available tools the agent can call."""
     
-    def __init__(self, base_url: str = "http://localhost:8001"):
+    def __init__(self, base_url: str = os.getenv("API_BASE_URL", "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net")):
         self.base_url = base_url
         self.tools = self._register_tools()
     
@@ -196,7 +197,7 @@ class ToolRegistry:
 class ToolExecutor:
     """Executes tool calls against FastAPI endpoints."""
     
-    def __init__(self, base_url: str = "http://localhost:8001"):
+    def __init__(self, base_url: str = os.getenv("API_BASE_URL", "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net")):
         self.base_url = base_url
         self.registry = ToolRegistry(base_url)
 

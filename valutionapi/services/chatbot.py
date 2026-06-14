@@ -166,7 +166,7 @@ class FinancialIntelligenceAgent:
     Intelligence Source: ALL from backend services, NEVER custom logic
     """
     
-    def __init__(self, db: Session, base_url: str = "http://localhost:8001"):
+    def __init__(self, db: Session, base_url: str = os.getenv("API_BASE_URL", "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net")):
         self.db = db
         self.tool_executor = ToolExecutor(base_url)
         self.tool_registry = ToolRegistry(base_url)
@@ -1035,7 +1035,7 @@ async def chat_stream(
     db: Session,
     user_id: str,
     query: str,
-    base_url: str = "http://localhost:8001"
+    base_url: str = os.getenv("API_BASE_URL", "https://valuationchatbot-exfsfyf6cta5gpek.germanywestcentral-01.azurewebsites.net")
 ):
     """
     Stream chat response.

@@ -57,6 +57,7 @@ if submitted:
         st.error("Passwords must match.")
     else:
         try:
+
             response = requests.post(
                 f"{API_BASE_URL}/auth/register",
                 json={
