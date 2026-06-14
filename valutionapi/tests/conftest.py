@@ -32,7 +32,7 @@ def pytest_configure():
     # Ensure environment variables are set (already done at top level, but following user suggestion)
     os.environ["JWT_SECRET_KEY"] = "test-secret-key-not-for-production"
     os.environ["GEMINI_API_KEY"] = "test-gemini-key"
-
+##testing
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Ensure environment variables required for tests are set."""
