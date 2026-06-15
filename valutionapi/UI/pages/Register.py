@@ -31,7 +31,7 @@ def _go_login() -> None:
 
 
 if is_authenticated():
-    st.switch_page("chatbot.py")
+    st.rerun()
 
 st.title("Register")
 st.caption("Create your account to use the authenticated valuation tools.")

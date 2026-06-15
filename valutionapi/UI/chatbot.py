@@ -583,7 +583,7 @@ def render():
                 unprocessed = msg["content"]
                 break
 
-    chat_input = st.chat_input("Ask about metrics (P/E, ROE), valuations, portfolios, or recommendations...")
+    chat_input = st.chat_input("Ask about metrics (P/E, ROE), valuations, portfolios, or recommendations...", key="chatbot_main_input")
 
     if st.session_state.retry_prompt:
         prompt = st.session_state.retry_prompt
@@ -689,4 +689,5 @@ def render():
             st.switch_page("pages/Login.py")
 
 
-render()
+if __name__ == "__main__":
+    render()

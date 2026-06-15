@@ -42,7 +42,7 @@ def _go_register() -> None:
 
 
 def _go_home() -> None:
-    st.switch_page("chatbot.py")
+    st.rerun()
 
 if is_authenticated():
     _go_home()
