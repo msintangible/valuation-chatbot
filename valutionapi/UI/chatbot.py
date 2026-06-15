@@ -9,7 +9,7 @@ import streamlit as st
 import requests
 from typing import Dict, Any
 import re
-from auth.session import get_user_id, require_auth
+from auth.session import get_token, get_user_id, get_role, require_auth
 
 # Configuration
 API_BASE_URL = os.getenv(
@@ -444,12 +444,14 @@ def render():
                 if st.session_state.debug_mode:
                     st.write("📤 Sending:", payload)
 
+                auth_headers = {"Authorization": f"Bearer {get_token()}"}
                 response = None
                 for attempt in range(2):
                     try:
                         response = requests.post(
                             API_CHAT_URL,
                             json=payload,
+                            headers=auth_headers,
                             timeout=60
                         )
                         break
@@ -525,7 +527,16 @@ def render():
 
             except requests.exceptions.HTTPError as e:
                 status_code = e.response.status_code
-                if status_code == 400:
+                if status_code == 401:
+                    st.error("Your session has expired. Please log in again.")
+                    from auth.session import logout
+                    logout()
+                    st.switch_page("pages/Login.py")
+                    st.stop()
+                elif status_code == 403:
+                    error_type = "api"
+                    friendly_msg = "Access denied. You do not have permission for this action."
+                elif status_code == 400:
                     error_type = "validation"
                     friendly_msg = "Invalid request. Please check your input."
                 else:
@@ -665,3 +676,17 @@ def render():
 
         st.caption(f"Connected to: {API_BASE_URL}")
         st.caption(f"User ID: {get_user_id()}")
+
+        st.divider()
+        if get_role() == "admin":
+            if st.button("🛡️ Admin Panel", use_container_width=True):
+                st.switch_page("pages/Admin.py")
+
+        st.divider()
+        if st.button("🚪 Logout", use_container_width=True):
+            from auth.session import logout
+            logout()
+            st.switch_page("pages/Login.py")
+
+
+render()

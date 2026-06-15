@@ -84,5 +84,4 @@ def render():
         else:
             st.info("Please refresh User Management tab to populate user list.")
 
-if __name__ == "__main__":
-    render()
+render()

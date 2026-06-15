@@ -55,12 +55,9 @@ async def chat(
     All intelligence comes from backend services - zero custom logic.
     """
     try:
-        if request.user_id != current_user.user_id:
-            raise HTTPException(status_code=403, detail="Token does not match requested user")
-
         agent = FinancialIntelligenceAgent(db=db)
         result = await agent.process_query(
-            user_id=request.user_id,
+            user_id=current_user.user_id,
             query=request.query
         )
         

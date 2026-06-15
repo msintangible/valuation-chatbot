@@ -96,6 +96,38 @@ The `/chat/` endpoint routes queries by intent:
 
 JWT-based auth with `POST /auth/register` and `POST /auth/login`. Endpoints requiring auth use `Depends(get_current_registered_user)`. Users without a `password_hash` (created via the old upsert-only path) cannot log in.
 
+Registration returns `{ message, user_id }` (no token). The Streamlit UI immediately calls `/auth/login` after a successful register to obtain a JWT and auto-log the user in.
+
+The JWT payload contains `{ sub: user_id, role }`. The UI decodes it client-side (unverified) via `UI/auth/session.py → store_auth()` to populate `st.session_state` keys `auth_token`, `auth_user_id`, `auth_role`, `auth_email`.
+
+### Role-based access control (RBAC)
+
+Two roles exist: `"user"` (default) and `"admin"` (set manually in DB).
+
+| Role  | Chat endpoint | Admin panel | User list |
+|-------|--------------|-------------|-----------|
+| user  | own user_id only | blocked | blocked |
+| admin | any user_id  | allowed | allowed |
+
+- `Depends(get_current_registered_user)` — allows any active registered user (both roles).
+- `Depends(require_admin)` — allows only `role == "admin"`.
+- The `/chat/` endpoint uses `get_current_registered_user` and bypasses the `user_id` match check for admins.
+- `UI/pages/Admin.py` renders only if `get_role() == "admin"`; non-admins see an "Access Denied" error.
+- The Admin Panel button in the chatbot sidebar is only shown to admin users.
+
+### UI page routing (`UI/`)
+
+All Streamlit pages call `render()` at module level (not inside `if __name__ == "__main__"`).
+
+Navigation uses `st.switch_page()` — never `st.rerun()` — for redirects between pages, because `st.rerun()` reruns the *current* page and cannot navigate away.
+
+| Page | Path | Auth guard |
+|------|------|-----------|
+| Chatbot (home) | `UI/chatbot.py` | `require_auth()` |
+| Login | `UI/pages/Login.py` | redirects to chatbot if already authed |
+| Register | `UI/pages/Register.py` | redirects to chatbot if already authed |
+| Admin | `UI/pages/Admin.py` | `require_auth()` + role == admin check |
+
 ### Portfolio risk scoring
 
 Risk score is computed as a **weighted average of prediction labels** (0=Undervalued, 1=Fair, 2=Overvalued). Thresholds: `< 0.35` → Low, `< 0.60` → Medium, else High. The score is **cached** on the `Portfolio` row to avoid repeating expensive multi-stock predictions.

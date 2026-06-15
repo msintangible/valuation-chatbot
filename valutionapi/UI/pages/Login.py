@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 
 import requests
 import streamlit as st
 
 from auth.session import is_authenticated, store_auth
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
@@ -13,11 +16,22 @@ API_BASE_URL = os.getenv(
 ).rstrip("/")
 
 
+_ERROR_CODE_MESSAGES: dict[str, str] = {
+    "email_not_registered": "No account found with this email address. Please register first.",
+    "incorrect_password": "Incorrect password. Please try again.",
+    "account_inactive": "This account has been deactivated. Please contact support.",
+    "password_not_set": "This account was created without a password. Please re-register.",
+}
+
+
 def _extract_error_message(payload: object) -> str:
     if isinstance(payload, dict):
         detail = payload.get("detail")
         if isinstance(detail, dict):
-            return str(detail.get("message") or detail.get("code") or "Login failed.")
+            code = detail.get("code", "")
+            if code in _ERROR_CODE_MESSAGES:
+                return _ERROR_CODE_MESSAGES[code]
+            return str(detail.get("message") or code or "Login failed.")
         if isinstance(detail, str):
             return detail
     return "Login failed."
@@ -28,7 +42,7 @@ def _go_register() -> None:
 
 
 def _go_home() -> None:
-    st.rerun()
+    st.switch_page("chatbot.py")
 
 if is_authenticated():
     _go_home()
@@ -49,8 +63,12 @@ if submitted:
     email_clean = email.strip()
     if not email_clean:
         st.error("Email cannot be empty.")
+    elif not _EMAIL_RE.match(email_clean):
+        st.error("Please enter a valid email address (e.g. you@example.com).")
     elif not password:
         st.error("Password cannot be empty.")
+    elif len(password) < 6:
+        st.error("Password must be at least 6 characters.")
     else:
         try:
             response = requests.post(
