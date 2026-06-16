@@ -19,6 +19,11 @@ API_BASE_URL = os.getenv(
 API_CHAT_PATH = os.getenv("API_CHAT_PATH", "/chat/")
 API_CHAT_URL = f"{API_BASE_URL}/{API_CHAT_PATH.lstrip('/')}"
 
+# Debug Mode exposes raw API requests/responses (payloads, status codes,
+# internal error text). It must be opt-in via env var AND restricted to
+# admins at runtime — never a toggle every user can flip in production.
+DEBUG_MODE_AVAILABLE = os.getenv("ENABLE_DEBUG_MODE", "false").strip().lower() in ("1", "true", "yes")
+
 # ─────────────────────────────────────────────────────────────
 # Helper Functions for Response Rendering
 # ─────────────────────────────────────────────────────────────
@@ -383,6 +388,11 @@ def render():
         st.session_state.messages = []
     if "debug_mode" not in st.session_state:
         st.session_state.debug_mode = False
+    # Hard kill-switch: even a stale/tampered session_state value can't
+    # re-enable debug output if the deployment hasn't opted in, or for a
+    # non-admin user.
+    if not (DEBUG_MODE_AVAILABLE and get_role() == "admin"):
+        st.session_state.debug_mode = False
     if "last_result" not in st.session_state:
         st.session_state.last_result = None
     if "last_ticker" not in st.session_state:
@@ -644,8 +654,9 @@ def render():
     with st.sidebar:
         st.caption(f"Current user ID: {get_user_id()}")
         st.divider()
-        st.session_state.debug_mode = st.toggle("🐞 Debug Mode", value=st.session_state.debug_mode)
-        st.divider()
+        if DEBUG_MODE_AVAILABLE and get_role() == "admin":
+            st.session_state.debug_mode = st.toggle("🐞 Debug Mode", value=st.session_state.debug_mode)
+            st.divider()
 
         st.header("ℹ️ About")
         st.markdown("""

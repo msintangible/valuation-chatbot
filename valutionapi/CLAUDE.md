@@ -48,6 +48,8 @@ Create a `.env` file in the project root (read by `core/setting.py`):
 
 The XGBoost model files (`valuation_model_xgb.json` and `model_columns.pkl`) must be present in the project root before startup.
 
+`ENABLE_DEBUG_MODE` (`false` by default) is **not** read by `core/setting.py` — it's read directly via `os.getenv` in `UI/chatbot.py` (the Streamlit process), not the FastAPI API. It gates the chatbot sidebar's "🐞 Debug Mode" toggle, which dumps raw request/response payloads. Even when set to `true`, the toggle only renders for users with `role == "admin"`. Leave unset (or `false`) in production.
+
 ## Architecture
 
 This is a **FastAPI ML API** with a layered architecture:

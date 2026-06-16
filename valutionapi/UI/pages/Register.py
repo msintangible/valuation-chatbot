@@ -114,7 +114,7 @@ if submitted:
                         role=login_payload.get("role"),
                     )
                     st.session_state.auth_flash = "Welcome! Your account has been created."
-                    st.switch_page("chatbot.py")
+                    st.rerun()
                 else:
                     # Registration succeeded but auto-login failed — fall back to login page
                     st.session_state.auth_flash = "Registration successful. Please log in."
