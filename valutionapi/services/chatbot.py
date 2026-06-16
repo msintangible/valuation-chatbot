@@ -25,6 +25,13 @@ import json
 import re
 
 from services.agent_tools import ToolExecutor, ToolRegistry
+from services.query_classifier import (
+    QueryCategory,
+    QueryClassification,
+    METRIC_LEXICON,
+    KNOWN_TICKER_UNIVERSE,
+    classify_query,
+)
 from models.models import Prediction
 
 load_dotenv()
@@ -104,49 +111,11 @@ def is_general_query(query: str) -> bool:
     return False
 
 
-def is_finance_metrics_query(query: str) -> bool:
-    """Detect general finance-metric educational questions."""
-    normalized = query.strip().lower()
-    if not normalized:
-        return False
-
-    metric_terms = [
-        "metric",
-        "metrics",
-        "indicator",
-        "indicators",
-        "financial ratio",
-        "ratio",
-        "valuation ratio",
-        "roe",
-        "roa",
-        "eps",
-        "ebitda",
-        "p/e",
-        "pe ratio",
-        "peg",
-        "beta",
-        "rsi",
-        "macd",
-        "gross margin",
-        "operating margin",
-        "net margin",
-        "debt to equity",
-        "current ratio",
-        "quick ratio",
-        "free cash flow",
-        "book value",
-        "price to book",
-        "price to sales",
-        "dividend yield",
-        "return on invested capital",
-        "interest coverage",
-    ]
-    finance_context_terms = ["stock", "stocks", "investing", "valuation", "finance", "financial"]
-
-    has_metric_term = any(term in normalized for term in metric_terms)
-    has_finance_context = any(term in normalized for term in finance_context_terms)
-    return has_metric_term or has_finance_context
+def _format_invalid_ticker_message(unrecognized: List[str]) -> str:
+    """Standardized, transparent message for tickers that failed
+    validation — never a silent empty result."""
+    joined = ", ".join(unrecognized)
+    return f"❌ Invalid tickers detected: {joined}. These are not recognized stock symbols."
 
 
 class FinancialIntelligenceAgent:
@@ -180,13 +149,18 @@ class FinancialIntelligenceAgent:
     async def process_query(self, user_id: str, query: str) -> Dict[str, Any]:
         """
         Main entry point - pure tool orchestration.
-        
+
         Flow:
-        1. Analyze query intent
-        2. Call appropriate endpoints based on intent
-        3. Call recommendation service for personalization
-        4. Format response with LLM
-        5. Use recommendations for next-action
+        0. MANDATORY FIRST STEP: classify_query() decides exactly one of
+           TICKER_QUERY / METRIC_EXPLANATION / MIXED_QUERY /
+           GENERAL_QUESTION. No tool/API call happens anywhere above this
+           line — this is what stops a financial metric (ROE, EPS, P/E,
+           ...) from ever reaching a ticker lookup endpoint.
+        1. Route based on category.
+        2. Call appropriate endpoints based on intent (ticker categories only).
+        3. Call recommendation service for personalization.
+        4. Format response with LLM.
+        5. Use recommendations for next-action.
         """
         print(f"➡️ process_query called with: {query}")
         if is_general_query(query):
@@ -200,17 +174,98 @@ class FinancialIntelligenceAgent:
                 ),
                 "next_best_action": "Ask a financial query to start analysis.",
                 "tools_used": [],
+                "errors": [],
                 "recommendations": {"top_sectors": [], "suggested_tickers": []}
             }
 
-        # Step 1: Analyze query intent
-        intent = self._analyze_intent(query)
+        # ── MANDATORY FIRST STEP — classify before any tool/API call ────
+        classification = classify_query(query)
+        print(
+            f"🔎 Classification: {classification.category} "
+            f"tickers={classification.ticker_candidates} metrics={classification.metrics}"
+        )
 
-        tickers = intent.get("entities", {}).get("tickers", [])
+        # Category B: METRIC_EXPLANATION → explanation engine ONLY.
+        # Hard rule: NEVER call a market-data API for a metric question.
+        if classification.category == QueryCategory.METRIC_EXPLANATION:
+            return self._respond_metric_explanation(query, classification)
+
+        # Category D: GENERAL_QUESTION → no structural ticker, no metric
+        # term. If the phrasing still looks like a valuation/comparison
+        # request, try resolving a company NAME (e.g. "Apple") via the
+        # LLM fallback before giving up on a ticker. Otherwise this falls
+        # through untouched to the existing portfolio/suggestions/general
+        # routing below.
+        if classification.category == QueryCategory.GENERAL_QUESTION:
+            query_lower = query.lower()
+            looks_like_valuation_request = any(
+                kw in query_lower
+                for kw in ("value", "worth", "price", "overvalued", "undervalued",
+                           "fair", "compare", "versus", " vs ", "analyze")
+            )
+            if looks_like_valuation_request:
+                resolved = self._resolve_company_name_tickers(query)
+                if resolved:
+                    classification = QueryClassification(
+                        category=QueryCategory.TICKER_QUERY,
+                        raw_query=query,
+                        ticker_candidates=resolved,
+                        recognized_tickers=[t for t in resolved if t in KNOWN_TICKER_UNIVERSE],
+                        unverified_tickers=[t for t in resolved if t not in KNOWN_TICKER_UNIVERSE],
+                        metrics=[],
+                    )
+
+        # Categories A & C (and GENERAL_QUESTION promoted above) share the
+        # ticker pipeline. Tickers always come from `classification` —
+        # never re-derived by a second regex — so a metric term can't
+        # leak back in here either.
+        if classification.category in (QueryCategory.TICKER_QUERY, QueryCategory.MIXED_QUERY):
+            return await self._respond_ticker_or_mixed(user_id, query, classification)
+
+        # Category D, no ticker resolved: existing portfolio/suggestions/
+        # general LLM routing, with an explicit empty ticker list.
+        intent = self._analyze_intent(query, tickers=[])
+        return await self._run_intent_pipeline(user_id, query, intent)
+
+    def _respond_metric_explanation(
+        self, query: str, classification: QueryClassification
+    ) -> Dict[str, Any]:
+        """Category B routing: explanation engine ONLY, no tool/API call.
+
+        This is the direct fix for the reported bug:
+        "What does ROE tell me?" -> classified METRIC_EXPLANATION ->
+        explained via the LLM knowledge layer -> zero ticker API calls.
+        """
+        response = self._generate_general_finance_response(query, "finance_education")
+        example_metric = classification.metrics[0] if classification.metrics else "ROE"
+        return {
+            "response": response,
+            "next_best_action": f"Ask about a ticker to apply this (e.g., 'How is AAPL's {example_metric}?').",
+            "tools_used": ["llm_finance_explanation"],
+            "errors": [],
+            "recommendations": {"top_sectors": [], "suggested_tickers": []},
+        }
+
+    async def _respond_ticker_or_mixed(
+        self, user_id: str, query: str, classification: QueryClassification
+    ) -> Dict[str, Any]:
+        """Category A (TICKER_QUERY) & C (MIXED_QUERY) routing.
+
+        - Ticker part -> financial data API (existing tool pipeline).
+        - Metric part (MIXED_QUERY only) -> explanation engine.
+        - Results combined into one response.
+
+        Also enforces the hard rule "NEVER return empty ticker arrays
+        without explaining why validation failed": any ticker the
+        backend's live validator rejects (404) is surfaced explicitly via
+        the standardized "Invalid tickers detected" message instead of a
+        generic/empty failure.
+        """
+        tickers = classification.ticker_candidates
+        intent = self._analyze_intent(query, tickers=tickers)
 
         ticker_required_intents = ["stock_valuation", "comparison"]
-
-        if intent["type"] in ticker_required_intents and not tickers:
+        if intent["type"] in ticker_required_intents and not intent["entities"].get("tickers"):
             return {
                 "response": (
                     "❌ I couldn't detect a valid stock ticker.\n\n"
@@ -222,8 +277,47 @@ class FinancialIntelligenceAgent:
                 ),
                 "next_best_action": "Try asking about a specific stock ticker (e.g., AAPL)",
                 "tools_used": [],
+                "errors": [],
                 "recommendations": {"top_sectors": [], "suggested_tickers": []}
             }
+
+        result = await self._run_intent_pipeline(user_id, query, intent)
+
+        # Transparently surface backend-rejected tickers (the hard rule:
+        # never an unexplained empty result).
+        invalid_tickers = self._extract_invalid_tickers(result.get("errors", []))
+        if invalid_tickers:
+            result["response"] = _format_invalid_ticker_message(invalid_tickers) + "\n\n" + result["response"]
+
+        # Category C: append the metric explanation alongside the
+        # ticker data instead of dropping it.
+        if classification.category == QueryCategory.MIXED_QUERY and classification.metrics:
+            explanation = self._generate_general_finance_response(query, "finance_education")
+            result["response"] = result["response"] + "\n\n---\n\n" + explanation
+            result["tools_used"] = result.get("tools_used", []) + ["llm_finance_explanation"]
+
+        return result
+
+    def _extract_invalid_tickers(self, errors: List[Dict[str, Any]]) -> List[str]:
+        """Pull out tickers the backend's live validator rejected
+        (HTTP 404 = "not a recognized stock symbol"), de-duplicated and
+        order-preserving."""
+        invalid: List[str] = []
+        seen = set()
+        for err in errors:
+            ticker = err.get("ticker")
+            if err.get("http_status") == 404 and ticker and ticker not in seen:
+                seen.add(ticker)
+                invalid.append(ticker)
+        return invalid
+
+    async def _run_intent_pipeline(
+        self, user_id: str, query: str, intent: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Steps 2-5 of the original orchestration flow: execute tools for
+        a resolved intent, fetch recommendations, format the response.
+        Shared by every routing branch that ends up calling a tool."""
+        tickers = intent.get("entities", {}).get("tickers", [])
 
         if intent["type"] in ["finance_education", "general"] and not tickers:
             response = self._generate_general_finance_response(query, intent["type"])
@@ -239,11 +333,11 @@ class FinancialIntelligenceAgent:
                 "errors": [],
                 "recommendations": {"top_sectors": [], "suggested_tickers": []}
             }
-        
+
         # Step 2: Execute endpoints based on intent
         tool_results = await self._execute_tools(user_id, query, intent)
         tool_errors = self._collect_tool_errors(tool_results)
-        
+
         # Step 3: Get personalized recommendations from backend service
         should_get_recommendations = (
                 intent["type"] in ["suggestions", "portfolio_suggestions"]
@@ -254,13 +348,13 @@ class FinancialIntelligenceAgent:
             recommendations = await self._get_recommendations(user_id, intent, tool_results)
         else:
             recommendations = {"top_sectors": [], "suggestions": []}
-        
+
         print(f"📊 DEBUG: Final recommendations before response generation:")
         print(f"   Type: {type(recommendations)}")
         print(f"   Keys: {recommendations.keys() if isinstance(recommendations, dict) else 'N/A'}")
         print(f"   top_sectors: {recommendations.get('top_sectors', [])}")
         print(f"   suggestions: {len(recommendations.get('suggestions', []))} items")
-        
+
         # Step 4: Generate response using tool data + recommendations
         response = await self._generate_response(
             query=query,
@@ -268,10 +362,10 @@ class FinancialIntelligenceAgent:
             tool_results=tool_results,
             recommendations=recommendations
         )
-        
+
         # Step 5: Extract next-action from recommendations
         next_action = self._extract_next_action(intent, recommendations)
-        
+
         return {
             "response": response,
             "next_best_action": next_action,
@@ -302,10 +396,19 @@ class FinancialIntelligenceAgent:
                 )
         return errors
     
-    def _analyze_intent(self, query: str) -> Dict[str, Any]:
+    def _analyze_intent(self, query: str, tickers: List[str]) -> Dict[str, Any]:
         """
-        Analyze user query to determine intent and extract entities.
-        
+        Analyze user query to determine WHICH TOOL to call, given an
+        already-classified, already-validated ticker list.
+
+        NOTE: this method no longer extracts tickers itself. Ticker vs.
+        metric classification is owned exclusively by
+        services.query_classifier.classify_query() (the mandatory first
+        step in process_query()), so there is exactly one place a token
+        can be decided to be a ticker — eliminating the class of bug
+        where a financial metric (ROE, EPS, ...) was independently
+        re-detected as a ticker by a second, competing regex here.
+
         Intents:
         - stock_valuation: User wants to know if stock is under/over valued
         - explanation: User wants to know WHY (SHAP)
@@ -315,7 +418,7 @@ class FinancialIntelligenceAgent:
         - history: User wants to see past predictions
         """
         query_lower = query.lower()
-        
+
         intent = {
             "type": "unknown",
             "confidence": 0.0,
@@ -323,9 +426,6 @@ class FinancialIntelligenceAgent:
             "needs_explanation": False,
             "needs_risk_analysis": False
         }
-
-
-        tickers = self._extract_tickers(query)
 
         if tickers:
             intent["entities"]["tickers"] = tickers
@@ -389,14 +489,12 @@ class FinancialIntelligenceAgent:
             intent["type"] = "stock_valuation"
             intent["confidence"] = 0.7
             return intent
-        
-        # No clear intent
-        if is_finance_metrics_query(query):
-            intent["type"] = "finance_education"
-            intent["confidence"] = 0.75
-            return intent
 
-        # No clear intent
+        # No tickers and no recognized keyword pattern. Metric-explanation
+        # queries never reach this point — process_query() routes
+        # METRIC_EXPLANATION / MIXED_QUERY straight to the explanation
+        # engine before _analyze_intent is ever called. This is the
+        # general/portfolio-advice catch-all.
         intent["type"] = "general"
         intent["confidence"] = 0.5
         return intent
@@ -441,35 +539,25 @@ Rules:
             "Try: 'What does P/E ratio mean?' or 'Analyze AAPL'."
         )
     
-    def _extract_tickers(self, query: str) -> List[str]:
+    def _resolve_company_name_tickers(self, query: str) -> List[str]:
         """
-        Extract stock ticker symbols from query.
-        Simple validation: looks for 1-5 uppercase letters.
+        Secondary fallback for GENERAL_QUESTION inputs that name a company
+        instead of a ticker symbol (e.g. "What's Apple worth?"). Only
+        called by process_query() when classify_query() found neither a
+        structural ticker nor a metric term, AND the query otherwise looks
+        like a valuation/comparison request.
+
+        This is NOT part of the mandatory classification step — it never
+        runs for METRIC_EXPLANATION/MIXED_QUERY inputs, and its output is
+        re-filtered through the same metric/stopword exclusion rules as
+        every other ticker source, so an LLM hallucination can't smuggle
+        a metric abbreviation back in as a "ticker".
         """
-        # Step 1: Regex
-        tickers = re.findall(r'\b[A-Z]{1,5}\b', query)
+        from services.query_classifier import METRIC_LEXICON, TICKER_STOPWORDS
 
-        # Step 2: Only ONE fallback attempt
-        if not tickers:
-            llm_tickers = self._llm_extract_tickers(query)
-            if llm_tickers:
-                tickers = llm_tickers
+        llm_tickers = self._llm_extract_tickers(query)
+        return [t for t in llm_tickers if t not in METRIC_LEXICON and t not in TICKER_STOPWORDS]
 
-        # Step 3: Clean + dedupe
-        seen = set()
-        valid_tickers = []
-
-        for ticker in tickers:
-            ticker = ticker.upper().strip()
-            if re.match(r'^[A-Z]{1,5}$', ticker) and ticker not in seen:
-                seen.add(ticker)
-                valid_tickers.append(ticker)
-
-        return valid_tickers
-
-
-
-    
     def _llm_extract_tickers(self, query: str) -> List[str]:
         """
         Use LLM to intelligently extract company names and convert to tickers.
